@@ -1,11 +1,8 @@
 {
   "mcpServers": {
     "context": {
-      "command": "uvx",
-      "args": [
-        "fulcra-context-mcp@latest"
-      ],
-      "env": {}
+      "url": "https://mcp.fulcradynamics.com/mcp",
+      "transport": "streamable-http"
     }
   }
 }

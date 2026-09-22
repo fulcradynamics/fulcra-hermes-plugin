@@ -2,7 +2,7 @@
 
 This is a [Portable Agent Plugins v1.0.0](https://agent-plugins.org/) wrapper for the [Fulcra Context MCP Server](https://github.com/fulcradynamics/fulcra-context-mcp).
 
-It allows [Hermes Agent](https://github.com/NousResearch/hermes-agent) to seamlessly connect to your Fulcra data by automatically launching the MCP server via `uvx`.
+It allows [Hermes Agent](https://github.com/NousResearch/hermes-agent) to seamlessly connect to your Fulcra data by pointing to the hosted, OAuth-secured MCP server at `mcp.fulcradynamics.com`.
 
 ## Installation
 
@@ -13,31 +13,19 @@ hermes plugins install fulcradynamics/fulcra-hermes-plugin --no-enable
 hermes plugins enable context
 ```
 
-## Requirements
-
-- **uv**: This plugin uses `uvx` to launch the MCP server. You must have [uv](https://github.com/astral-sh/uv) installed on your system.
-
 ## Authentication
 
-Fulcra uses an OAuth2 flow to secure your data. Before running the plugin, you must authenticate the local MCP server so it can retrieve your data:
+Fulcra secures your data using an OAuth2 flow on the hosted MCP server. Because this plugin uses HTTP transport instead of launching a local subprocess, Hermes handles the OAuth flow directly.
 
-1. Install the official Fulcra Python API locally (if you haven't already):
-   ```bash
-   pip install fulcra-api
-   ```
-2. Run the interactive CLI login command:
-   ```bash
-   fulcra auth login
-   ```
-3. Follow the generated link in your browser to authorize access. 
+When you attempt to use a Context tool in Hermes for the first time, Hermes will recognize that the `mcp.fulcradynamics.com` server requires OAuth2 authorization. It will provide you with a browser URL to log in and approve the connection. 
 
-This process securely caches your OAuth credentials (including a refresh token) locally, which the MCP server will automatically detect and use when Hermes launches it.
+Once approved, Hermes manages the OAuth tokens for you and attaches them to subsequent MCP requests. **You do not need to install the Fulcra CLI or manually manage API keys.**
 
 ## How it works
 
 This repository contains:
 1. `plugin.json`: Metadata identifying this as a portable Hermes plugin.
-2. `mcp.json`: Configuration telling Hermes to launch `uvx fulcra-context-mcp@latest`.
+2. `mcp.json`: Configuration telling Hermes to connect to `https://mcp.fulcradynamics.com/mcp` using the Streamable HTTP transport.
 3. `skills/context/SKILL.md`: Guidance prompts teaching Hermes how to correctly utilize the Fulcra Context tools.
 
-Since the core logic lives in the `fulcra-context-mcp` package, this plugin remains lightweight and automatically benefits from upstream improvements to the MCP server.
+Since the actual tools are hosted securely by Fulcra, this plugin remains lightweight and automatically benefits from upstream improvements to the MCP server.
