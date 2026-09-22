@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "fulcra_context": {
+    "context": {
       "command": "uvx",
       "args": [
         "fulcra-context-mcp@latest"

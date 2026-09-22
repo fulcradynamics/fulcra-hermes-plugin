@@ -10,7 +10,7 @@ You can install this plugin directly into your Hermes Agent environment:
 
 ```bash
 hermes plugins install fulcradynamics/fulcra-hermes-plugin --no-enable
-hermes plugins enable fulcra-context
+hermes plugins enable context
 ```
 
 ## Requirements
@@ -23,6 +23,6 @@ hermes plugins enable fulcra-context
 This repository contains:
 1. `plugin.json`: Metadata identifying this as a portable Hermes plugin.
 2. `mcp.json`: Configuration telling Hermes to launch `uvx fulcra-context-mcp@latest`.
-3. `skills/fulcra-context/SKILL.md`: Guidance prompts teaching Hermes how to correctly utilize the Fulcra Context tools.
+3. `skills/context/SKILL.md`: Guidance prompts teaching Hermes how to correctly utilize the Fulcra Context tools.
 
 Since the core logic lives in the `fulcra-context-mcp` package, this plugin remains lightweight and automatically benefits from upstream improvements to the MCP server.
