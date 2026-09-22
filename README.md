@@ -16,7 +16,22 @@ hermes plugins enable context
 ## Requirements
 
 - **uv**: This plugin uses `uvx` to launch the MCP server. You must have [uv](https://github.com/astral-sh/uv) installed on your system.
-- **Authentication**: Set your Fulcra API credentials in your Hermes environment (e.g., `FULCRA_API_KEY`). The MCP server will automatically pick these up when Hermes launches it.
+
+## Authentication
+
+Fulcra uses an OAuth2 flow to secure your data. Before running the plugin, you must authenticate the local MCP server so it can retrieve your data:
+
+1. Install the official Fulcra Python API locally (if you haven't already):
+   ```bash
+   pip install fulcra-api
+   ```
+2. Run the interactive CLI login command:
+   ```bash
+   fulcra auth login
+   ```
+3. Follow the generated link in your browser to authorize access. 
+
+This process securely caches your OAuth credentials (including a refresh token) locally, which the MCP server will automatically detect and use when Hermes launches it.
 
 ## How it works
 
