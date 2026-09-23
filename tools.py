@@ -211,34 +211,27 @@ def _run_cli(arguments, *, timeout=180):
 
 
 @_tool("fulcra_auth", "Start noninteractive browser authentication; return an auth URL and device code. Wait for browser approval before fulcra_auth_device. Does not reset existing credentials.", {})
-def fulcra_get_auth_url(args, **kwargs):
+def fulcra_get_auth_url(args):
     """Start the noninteractive device flow; never open a browser on the host."""
-    try:
-        output = _run_cli(["auth", "login", "--get-auth-url"])
-        return output + (
-            "\n\nWait for the user to complete browser authorization, then call "
-            "fulcra_auth_device with the returned device code. Use the tool rather "
-            "than running the printed CLI command."
-        )
-    except Exception as exc:
-        return f"Error: {exc}"
+    output = _run_cli(["auth", "login", "--get-auth-url"])
+    if len(output) > MAX_OUTPUT - 300:
+        raise RuntimeError("Authentication response is unexpectedly large; retry or inspect the pinned CLI locally.")
+    return output + (
+        "\n\nWait for the user to complete browser authorization, then call "
+        "fulcra_auth_device with the returned device code. Use the tool rather "
+        "than running the printed CLI command."
+    )
 
 
 @_tool("fulcra_auth_device", "Finish authentication only after browser approval using the device_code from fulcra_auth. CLI persists credentials in OS-user storage, shared by Hermes profiles.", {"device_code": STRING}, ("device_code",))
-def fulcra_submit_device_code(args, **kwargs):
+def fulcra_submit_device_code(args):
     """Finish the device flow and let the CLI persist its own credentials."""
-    device_code = args.get("device_code")
-    if (not isinstance(device_code, str) or not device_code.strip()
-            or "\x00" in device_code or device_code.startswith("-")):
-        return "Error: device_code must be a nonempty device code returned by fulcra_auth."
-    try:
-        return _run_cli(
-            ["auth", "login", "--device-code", device_code,
-             "--poll-timeout", "900", "--poll-interval", "5"],
-            timeout=1080,
-        )
-    except Exception as exc:
-        return f"Error checking authorization status: {str(exc).replace(device_code, '[redacted]')}"
+    output = _run_cli(
+        ["auth", "login", "--device-code", args["device_code"],
+         "--poll-timeout", "900", "--poll-interval", "5"], timeout=1080)
+    if len(output) > MAX_OUTPUT:
+        raise RuntimeError("Authentication response is unexpectedly large; inspect login status locally before retrying.")
+    return output
 
 
 @_tool("fulcra_data_catalog", "Discover exact data type IDs before querying or writing. Filter recordable/base types before fulcra_create_data_type; inspect fulcra_data_type_schema before fulcra_record. Results are bounded, not server pagination.", {
@@ -376,16 +369,20 @@ def fulcra_record(args):
 DELETION = {"type": "object", "properties": {"record_id": UUID}, "required": ["record_id"], "additionalProperties": False}
 
 
-@_tool("fulcra_delete_records", "Delete only explicitly identified records from your recordable data type. Provide one record_id or structured records [{record_id: UUID}]. No time-range or all-record deletion. Retrieve IDs with fulcra_get_records first; deletion uploads may process asynchronously.", {
-    "data_type": DATA_TYPE, "record_id": UUID, "records": _array(DELETION), "api_version": STRING}, ("data_type",))
+@_tool("fulcra_delete_records", "Delete only explicitly identified records from your recordable data type. Provide exactly one of record_id, record {record_id: UUID}, or records [{record_id: UUID}]. No time-range or all-record deletion. Retrieve IDs with fulcra_get_records first; deletion uploads may process asynchronously.", {
+    "data_type": DATA_TYPE, "record_id": UUID, "record": DELETION, "records": _array(DELETION), "api_version": STRING}, ("data_type",))
 def fulcra_delete_records(args):
-    if ("record_id" in args) == ("records" in args):
-        raise ValueError("Provide exactly one of record_id or records.")
+    if sum(key in args for key in ("record_id", "record", "records")) != 1:
+        raise ValueError("Provide exactly one of record_id, record or records.")
     command = ["delete", args["data_type"]]
     if "record_id" in args:
         command.append(args["record_id"])
     command += _options(args, {"api_version": "--api-version"})
-    raw = _record_file(command, args["records"]) if "records" in args else _run_cli(command)
+    if "record_id" in args:
+        raw = _run_cli(command)
+    else:
+        rows = [args["record"]] if "record" in args else args["records"]
+        raw = _record_file(command, rows)
     return _bounded({"message": raw}, args)
 
 

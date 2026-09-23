@@ -1,36 +1,20 @@
 """Fulcra Context plugin for Hermes Agent."""
 
 from pathlib import Path
-from . import schemas
-from . import tools
+from . import schemas, tools
+
 
 def register(ctx):
-    """Wire schemas to handlers and register skills."""
-    
-    # Register Authentication Tools
-    ctx.register_tool(
-        name="fulcra_auth",
-        toolset="context",
-        schema=schemas.AUTH_GET_URL,
-        handler=tools.fulcra_get_auth_url,
-    )
+    """Wire fixed CLI handlers to their typed schemas, then bundled resources."""
+    renamed_handlers = {
+        "fulcra_auth": tools.fulcra_get_auth_url,
+        "fulcra_auth_device": tools.fulcra_submit_device_code,
+        "fulcra_data_catalog": tools.fulcra_get_data_catalog,
+    }
+    for name, schema in schemas.TOOL_SCHEMAS.items():
+        handler = renamed_handlers[name] if name in renamed_handlers else getattr(tools, name)
+        ctx.register_tool(name=name, toolset="context", schema=schema, handler=handler)
 
-    ctx.register_tool(
-        name="fulcra_auth_device",
-        toolset="context",
-        schema=schemas.AUTH_SUBMIT_CODE,
-        handler=tools.fulcra_submit_device_code,
-    )
-
-    # Register Catalog Tool
-    ctx.register_tool(
-        name="fulcra_data_catalog",
-        toolset="context",
-        schema=schemas.GET_CATALOG,
-        handler=tools.fulcra_get_data_catalog,
-    )
-
-    # Register bundled skills
     skills_dir = Path(__file__).parent / "skills"
     if skills_dir.exists():
         for child in sorted(skills_dir.iterdir()):

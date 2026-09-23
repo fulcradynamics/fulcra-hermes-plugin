@@ -33,6 +33,17 @@ class AdapterTests(unittest.TestCase):
         modules.start()
         self.addCleanup(modules.stop)
 
+    def test_auth_unexpected_errors_are_safe_and_success_output_is_bounded(self):
+        tools = load_tools()
+        for handler, args in ((tools.fulcra_get_auth_url, {}), (tools.fulcra_submit_device_code, {"device_code": "fixture"})):
+            with patch.object(tools, "_run_cli", side_effect=OSError("private-secret")):
+                result = handler(args)
+            self.assertNotIn("private-secret", result)
+            self.assertTrue(result.startswith("Error"))
+            with patch.object(tools, "_run_cli", return_value="x" * 40000):
+                result = handler(args)
+            self.assertLessEqual(len(result), 24000)
+
     def test_empty_read_streams_and_silent_mutation_are_successful(self):
         tools = load_tools()
         with patch.object(tools, "_runtime_context", return_value=(True, {"PATH": "/bin"})), \

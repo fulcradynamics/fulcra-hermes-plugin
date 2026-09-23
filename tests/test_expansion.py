@@ -162,6 +162,7 @@ class ExpansionTests(unittest.TestCase):
         for name, field, rows, command in (
             ("fulcra_record", "record", {"value": -2, "note": "--help; safe"}, "record"),
             ("fulcra_record", "records", [{"value": 1}, {"value": 2}], "record"),
+            ("fulcra_delete_records", "record", {"record_id": ID}, "delete"),
             ("fulcra_delete_records", "records", [{"record_id": ID}, {"record_id": ID}], "delete"),
         ):
             paths = []

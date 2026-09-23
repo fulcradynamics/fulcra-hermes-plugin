@@ -1,31 +1,10 @@
-"""Tool schemas for the LLM."""
+"""Public schemas share the exact validation contract used by the CLI handlers.
 
-AUTH_GET_URL = {
-    "description": "Start the authentication process. Returns a web auth URL for the user to visit, and a device code.",
-    "parameters": {
-        "type": "object",
-        "properties": {}
-    }
-}
+Definitions live beside their handlers in tools.py so validation and the model's
+schema cannot drift. No SDK, subprocess or runtime configuration is loaded here.
+"""
+from .tools import TOOL_SCHEMAS
 
-AUTH_SUBMIT_CODE = {
-    "description": "Complete authentication by polling for the provided device code. Run this AFTER the user has authorized in the browser.",
-    "parameters": {
-        "type": "object",
-        "properties": {
-            "device_code": {
-                "type": "string",
-                "description": "The device code returned by the fulcra_auth tool"
-            }
-        },
-        "required": ["device_code"]
-    }
-}
-
-GET_CATALOG = {
-    "description": "Get all data types available for this user from Fulcra.",
-    "parameters": {
-        "type": "object",
-        "properties": {}
-    }
-}
+AUTH_GET_URL = TOOL_SCHEMAS["fulcra_auth"]
+AUTH_SUBMIT_CODE = TOOL_SCHEMAS["fulcra_auth_device"]
+GET_CATALOG = TOOL_SCHEMAS["fulcra_data_catalog"]
