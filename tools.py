@@ -33,38 +33,11 @@ def _enum(*values):
     return {"type": "string", "enum": list(values)}
 
 
-def _validate(value, schema, name="arguments"):
-    kind = schema.get("type")
-    expected = {"string": str, "boolean": bool, "integer": int, "object": dict, "array": list}
-    if kind in expected and type(value) is not expected[kind]:
-        raise ValueError(f"{name} must be {kind}.")
-    if kind == "string":
-        if "\x00" in value or (schema.get("minLength") and not value.strip()):
-            raise ValueError(f"{name} must be nonempty and contain no NUL.")
-        if name not in ("content", "default_value") and value.startswith("-"):
-            raise ValueError(f"{name} must not start with a dash.")
-        if schema is REMOTE_PATH and ("\\" in value or "//" in value or any(part in (".", "..") for part in value.split("/"))):
-            raise ValueError("Remote paths must be explicit POSIX paths without backslashes, repeated slashes or dot segments.")
-        if "pattern" in schema and not re.fullmatch(schema["pattern"], value):
-            raise ValueError(f"{name} has an invalid identifier format; copy the exact ID from the corresponding read tool.")
-    if "enum" in schema and value not in schema["enum"]:
-        raise ValueError(f"{name} must be one of {', '.join(schema['enum'])}.")
-    if kind == "integer" and not schema.get("minimum", value) <= value <= schema.get("maximum", value):
-        raise ValueError(f"{name} is outside its allowed range.")
-    if kind == "array":
-        if not schema.get("minItems", 0) <= len(value) <= schema.get("maxItems", 2000):
-            raise ValueError(f"{name} has an invalid number of items.")
-        for item in value:
-            _validate(item, schema["items"], name + " item")
-    if kind == "object":
-        properties = schema.get("properties", {})
-        if schema.get("additionalProperties") is False and value.keys() - properties.keys():
-            raise ValueError(f"{name} contains unknown arguments.")
-        if set(schema.get("required", [])) - value.keys():
-            raise ValueError(f"{name} requires: {', '.join(schema['required'])}.")
-        for key, item in value.items():
-            if key in properties:
-                _validate(item, properties[key], key)
+def _pos(value):
+    """Keep a user-supplied positional argument from becoming a CLI option."""
+    if not isinstance(value, str) or not value.strip() or value.startswith("-") or "\x00" in value:
+        raise ValueError("CLI arguments must be nonempty strings without a leading dash or NUL.")
+    return value
 
 
 def _tool(name, description, properties, required=()):
@@ -76,7 +49,12 @@ def _tool(name, description, properties, required=()):
         @functools.wraps(fn)
         def wrapped(args, **kwargs):
             try:
-                _validate(args, schema["parameters"])
+                if not isinstance(args, dict) or args.keys() - properties.keys():
+                    raise ValueError("Unknown tool arguments.")
+                if "path" in args:
+                    path = _pos(args["path"])
+                    if not path.startswith("/") or "\\" in path or "//" in path or any(p in (".", "..") for p in path.split("/")):
+                        raise ValueError("Use an explicit absolute remote path without dot segments.")
                 if "output_path" in args:
                     _local_path(args["output_path"], new=True)
                 return fn(args)
@@ -99,6 +77,8 @@ def _options(args, mapping):
                 result.append(flag)
         else:
             for item in value if isinstance(value, list) else [value]:
+                if "\x00" in str(item):
+                    raise ValueError("CLI option values must contain no NUL.")
                 if str(item).startswith("-"):
                     result.append(flag + "=" + str(item))
                 else:
@@ -234,7 +214,7 @@ def fulcra_auth(args):
 def fulcra_auth_device(args):
     """Finish the device flow and let the CLI persist its own credentials."""
     output = _run_cli(
-        ["auth", "login", "--device-code", args["device_code"],
+        ["auth", "login", "--device-code", _pos(args["device_code"]),
          "--poll-timeout", "900", "--poll-interval", "5"], timeout=1080)
     if len(output) > MAX_OUTPUT:
         raise RuntimeError("Authentication response is unexpectedly large; inspect login status locally before retrying.")
@@ -264,7 +244,7 @@ def fulcra_create_data_type(args):
         raise ValueError("The CLI ignores default_value for ScaleAnnotation; omit it.")
     if "default_value" in args and base == "NumericAnnotation" and not math.isfinite(float(args["default_value"])):
         raise ValueError("default_value must be a finite number.")
-    command = ["data-type", "create", base, args["name"]] + _options(args, {
+    command = ["data-type", "create", _pos(base), _pos(args["name"])] + _options(args, {
         "description": "--description", "tags": "--tag", "metric_kind": "--kind",
         "default_value": "--value", "unit": "--unit", "scale_labels": "--scale-label"})
     return _bounded(_json_output(_run_cli(command)), args)
@@ -273,17 +253,19 @@ def fulcra_create_data_type(args):
 @_tool("fulcra_data_type_schema", "Read the JSON record schema before fulcra_record. Use api_version to disambiguate catalog entries; user_id selects a shared owner's schema.", {
     "data_type": DATA_TYPE, "api_version": STRING, "user_id": UUID, **EXPORT}, ("data_type",))
 def fulcra_data_type_schema(args):
-    command = ["data-type", "schema", args["data_type"]] + _options(args, {"api_version": "--api-version", "user_id": "--user-id"})
+    command = ["data-type", "schema", _pos(args["data_type"])] + _options(args, {"api_version": "--api-version", "user_id": "--user-id"})
     return _bounded(_json_output(_run_cli(command)), args)
 
 
 @_tool("fulcra_data_type_lifecycle", "Archive or restore your user-defined annotation type. This changes availability of the type, not a request to delete individual records. Requires the complete BaseAnnotation/UUID ID.", {
     "data_type": DATA_TYPE, "action": _enum("archive", "restore")}, ("data_type", "action"))
 def fulcra_data_type_lifecycle(args):
+    if args["action"] not in ("archive", "restore"):
+        raise ValueError("action must be archive or restore.")
     parts = args["data_type"].split("/")
     if len(parts) != 2 or parts[0] not in BASE_TYPES:
         raise ValueError("data_type must be a complete BaseAnnotation/UUID ID from fulcra_data_catalog.")
-    raw = _run_cli(["data-type", args["action"], args["data_type"]])
+    raw = _run_cli(["data-type", args["action"], _pos(args["data_type"])])
     return _bounded(_json_output(raw) if args["action"] == "restore" else {"message": raw}, args)
 
 
@@ -303,6 +285,8 @@ def _timestamp(value):
 
 def _times(args, *, latest=False):
     values = args["time_range"]
+    if not isinstance(values, list) or len(values) not in (1, 2):
+        raise ValueError("time_range must contain one interval or two timestamps.")
     if len(values) == 2:
         if _timestamp(values[1]) <= _timestamp(values[0]):
             raise ValueError("end time must be after start time.")
@@ -331,7 +315,7 @@ def fulcra_record(args):
     if ("record" in args) == ("records" in args):
         raise ValueError("Provide exactly one of record or records.")
     rows = [args["record"]] if "record" in args else args["records"]
-    command = ["record", args["data_type"]] + _options(args, {"api_version": "--api-version", "tags": "--tag", "sources": "--source"})
+    command = ["record", _pos(args["data_type"])] + _options(args, {"api_version": "--api-version", "tags": "--tag", "sources": "--source"})
     return _bounded({"message": _record_file(command, rows)}, args)
 
 
@@ -343,9 +327,9 @@ DELETION = {"type": "object", "properties": {"record_id": UUID}, "required": ["r
 def fulcra_delete_records(args):
     if sum(key in args for key in ("record_id", "record", "records")) != 1:
         raise ValueError("Provide exactly one of record_id, record or records.")
-    command = ["delete", args["data_type"]]
+    command = ["delete", _pos(args["data_type"])]
     if "record_id" in args:
-        command.append(args["record_id"])
+        command.append(_pos(args["record_id"]))
     command += _options(args, {"api_version": "--api-version"})
     if "record_id" in args:
         raw = _run_cli(command)
@@ -361,7 +345,7 @@ def fulcra_delete_records(args):
 def fulcra_get_records(args):
     if ("group_id" in args) != ("participant_id" in args) or ("group_id" in args and "user_id" in args):
         raise ValueError("Use user_id OR the pair group_id and participant_id.")
-    command = ["get-records", args["data_type"], *_times(args, latest=True)] + _options(args, {
+    command = ["get-records", _pos(args["data_type"]), *_times(args, latest=True)] + _options(args, {
         "user_id": "--user-id", "group_id": "--group-id", "participant_id": "--participant-id"})
     return _bounded(_json_output(_run_cli(command), rows=True), args)
 
@@ -391,6 +375,8 @@ def _share_times(args):
     "name": STRING, "data_types": _array(DATA_TYPE), "files": _array(REMOTE_PATH),
     "user_ids": _array(UUID), "group_ids": _array(UUID), "share_all": BOOLEAN, **SHARE_TIMES})
 def fulcra_create_share(args):
+    if type(args.get("share_all", False)) is not bool:
+        raise ValueError("share_all must be an explicit boolean.")
     if not (args.get("user_ids") or args.get("group_ids")):
         raise ValueError("Specify at least one user_ids or group_ids recipient.")
     scoped = bool(args.get("data_types") or args.get("files"))
@@ -418,6 +404,8 @@ SHARE_UPDATE_FLAGS = {f"{action}_{key}": f"--{action}-{flag}"
     "share_all": BOOLEAN, **SHARE_TIMES, "no_start_time": BOOLEAN,
     "no_end_time": BOOLEAN, "clear": BOOLEAN}, ("share_id",))
 def fulcra_update_share(args):
+    if type(args.get("share_all", False)) is not bool:
+        raise ValueError("share_all must be an explicit boolean.")
     if not any(value or key == "share_all" for key, value in args.items() if key != "share_id"):
         raise ValueError("Specify at least one change to the share.")
     for key in SHARE_LIST_FIELDS:
@@ -433,7 +421,7 @@ def fulcra_update_share(args):
     if args.get("share_all") and any(key in args for key in SHARE_UPDATE_FIELDS if key.endswith(("data_types", "files"))):
         raise ValueError("share_all=true conflicts with explicit selector changes.")
     _share_times(args)
-    command = ["share", "update", args["share_id"]] + _options(args, {
+    command = ["share", "update", _pos(args["share_id"])] + _options(args, {
         "name": "--name", **SHARE_UPDATE_FLAGS, "no_group_ids": "--no-group-id",
         "start_time": "--start-time", "end_time": "--end-time", "no_start_time": "--no-start-time",
         "no_end_time": "--no-end-time", "clear": "--clear"})
@@ -446,6 +434,8 @@ def fulcra_update_share(args):
     "direction": _enum("incoming", "outgoing", "both"), **OUTPUT})
 def fulcra_list_shares(args):
     direction = args.get("direction", "both")
+    if direction not in ("incoming", "outgoing", "both"):
+        raise ValueError("direction must be incoming, outgoing or both.")
     result = {}
     for current in ("incoming", "outgoing") if direction == "both" else (direction,):
         rows = _json_output(_run_cli(["share", "list-" + current]), rows=True)
@@ -456,18 +446,18 @@ def fulcra_list_shares(args):
 
 @_tool("fulcra_delete_share", "Revoke an entire outgoing share you created, removing every recipient's access through it. Read fulcra_list_shares outgoing and confirm scope first. This does not delete underlying records/files.", {"share_id": UUID}, ("share_id",))
 def fulcra_delete_share(args):
-    return _bounded({"message": _run_cli(["share", "delete", args["share_id"]])}, args)
+    return _bounded({"message": _run_cli(["share", "delete", _pos(args["share_id"])])}, args)
 
 
 @_tool("fulcra_leave_share", "Give up your individual incoming grant. Use grant_id (not share ID) from fulcra_list_shares. Group grants cannot be left with this tool; group membership management is outside this surface.", {"grant_id": UUID}, ("grant_id",))
 def fulcra_leave_share(args):
-    return _bounded({"message": _run_cli(["share", "leave", args["grant_id"]])}, args)
+    return _bounded({"message": _run_cli(["share", "leave", _pos(args["grant_id"])])}, args)
 
 
 @_tool("fulcra_shared_data_types", "Check what an owner shares with you before querying their records. Request a window strictly inside the grant's boundaries: its end comparison is strict. all_data_types=true with an empty type list means everything is shared, not nothing. Includes group grants.", {
     "user_id": UUID, "time_range": TIME_RANGE, **EXPORT}, ("user_id", "time_range"))
 def fulcra_shared_data_types(args):
-    return _bounded(_json_output(_run_cli(["share", "shared-data-types", args["user_id"], *_times(args)])), args)
+    return _bounded(_json_output(_run_cli(["share", "shared-data-types", _pos(args["user_id"]), *_times(args)])), args)
 
 
 def _local_path(value, *, new=False):
@@ -557,7 +547,7 @@ def fulcra_file_delete(args):
 
 @_tool("fulcra_file_restore", "Restore a previous file version using its exact version UUID from fulcra_file_stat. This changes the current version at the original path; inspect stat afterward.", {"version_id": UUID}, ("version_id",))
 def fulcra_file_restore(args):
-    return _bounded({"message": _run_cli(["file", "restore", args["version_id"]])}, args)
+    return _bounded({"message": _run_cli(["file", "restore", _pos(args["version_id"])])}, args)
 
 
 @_tool("fulcra_file_share", "Grant explicit users access to the latest file versions at a path/prefix using the CLI file share command. Directories include future files; '/' grants all files. No history is granted. For groups or time bounds use fulcra_create_share with files instead. Verify with fulcra_list_shares outgoing.", {

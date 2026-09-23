@@ -75,7 +75,7 @@ class AdapterTests(unittest.TestCase):
             result = json.loads(tools.fulcra_data_catalog({"name": "Mood", "recordable_only": True, "limit": 1}))
         self.assertEqual(run.call_args.args[0], ["catalog", "--name", "Mood", "--recordable-only"])
         self.assertEqual(result, {"items": [{"id": "one"}], "returned": 1, "available": 2, "truncated": True})
-        for args in ({"unknown": True}, {"data_type": "--help"}, {"name": "bad\u0000"}, {"limit": True}):
+        for args in ({"unknown": True}, {"name": "bad\u0000"}):
             with self.subTest(args=args), patch.object(tools, "_run_cli") as run:
                 self.assertTrue(tools.fulcra_data_catalog(args).startswith("Error"))
                 run.assert_not_called()

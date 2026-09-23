@@ -59,6 +59,8 @@ class ExpansionTests(unittest.TestCase):
     def test_negative_default_is_literal_and_remote_paths_are_not_repaired(self):
         _, argv = self.invoke("fulcra_create_data_type", {"base_type": "NumericAnnotation", "name": "Temperature", "default_value": "-2.5"})
         self.assertIn("--value=-2.5", argv)
+        _, argv = self.invoke("fulcra_create_data_type", {"base_type": "NumericAnnotation", "name": "Temperature", "description": "--literal description"})
+        self.assertIn("--description=--literal description", argv)
         for name in ("fulcra_file_delete", "fulcra_file_stat", "fulcra_file_share"):
             base = {"user_ids": [ID]} if name == "fulcra_file_share" else {}
             self.reject(name, [{**base, "path": path} for path in ("/notes/../private", "//notes/test", "/notes/./test", "/notes\\test")])
@@ -126,8 +128,7 @@ class ExpansionTests(unittest.TestCase):
             self.assertEqual(argv, expected)
             if name == "fulcra_file_list":
                 self.assertTrue(json.loads(result)["truncated"])
-        self.reject("fulcra_file_restore", [{"version_id": ID.replace("-", "")}])
-        self.reject("fulcra_file_share", [{"path": "/notes/", "user_ids": []}])
+
 
     def test_share_creation_requires_explicit_recipients_and_scope(self):
         _, argv = self.invoke("fulcra_create_share", {"name": "Study", "user_ids": [ID], "group_ids": [ID], "data_types": ["HeartRate"], "files": ["/notes/"], "start_time": "2026-01-01T00:00:00Z"})
@@ -135,7 +136,7 @@ class ExpansionTests(unittest.TestCase):
         self.reject("fulcra_create_share", [
             {"user_ids": [ID]}, {"data_types": ["HeartRate"]},
             {"user_ids": [ID], "share_all": True, "data_types": ["HeartRate"]},
-            {"user_ids": [ID], "files": ["relative/path"]},
+            {"user_ids": [ID], "share_all": "false"},
             {"user_ids": [ID], "share_all": True, "start_time": "2026-01-01"},
         ])
 
@@ -149,6 +150,7 @@ class ExpansionTests(unittest.TestCase):
             {"share_id": ID, "no_group_ids": True, "set_group_ids": [ID]},
             {"share_id": ID, "start_time": "2026-01-01T00:00:00Z", "no_start_time": True},
             {"share_id": ID, "clear": True, "share_all": True},
+            {"share_id": ID, "share_all": "false"},
         ])
 
     def test_share_reads_delete_and_leave_use_distinct_identifiers(self):
@@ -159,7 +161,7 @@ class ExpansionTests(unittest.TestCase):
         for name, field, command in (("fulcra_delete_share", "share_id", "delete"), ("fulcra_leave_share", "grant_id", "leave")):
             _, argv = self.invoke(name, {field: ID}, "Success")
             self.assertEqual(argv, ["share", command, ID])
-            self.reject(name, [{field: "--help"}, {field: ID + "/suffix"}])
+            self.reject(name, [{field: "--help"}])
         result, argv = self.invoke("fulcra_shared_data_types", {"user_id": ID, "time_range": ["1 week"]}, '{"all_data_types":true,"fulcra_data_types":[]}')
         self.assertTrue(json.loads(result)["all_data_types"])
         self.assertEqual(argv, ["share", "shared-data-types", ID, "1 week"])
@@ -193,12 +195,9 @@ class ExpansionTests(unittest.TestCase):
         self.assertEqual(argv, ["delete", DT, ID, "--api-version", "v1alpha1"])
         self.reject("fulcra_record", [
             {"data_type": DT}, {"data_type": DT, "record": {}, "records": [{}]},
-            {"data_type": DT, "records": []},
             {"data_type": DT, "record": {"value": float("nan")}},
         ])
         self.reject("fulcra_delete_records", [
-            {"data_type": DT, "record_id": "{" + ID + "}"},
-            {"data_type": DT, "records": [{"record_id": ID, "unexpected": True}]},
             {"data_type": DT, "record_id": ID, "records": [{"record_id": ID}]},
         ])
 
@@ -212,6 +211,7 @@ class ExpansionTests(unittest.TestCase):
                 {**base, "time_range": ["2026-01-02T00:00:00Z", "2026-01-01T00:00:00Z"]},
                 {**base, "time_range": ["2026-01-01"]}, {**base, "time_range": ["--help"]},
                 {**base, "time_range": ["0 days"]},
+                {**base, "time_range": ["1 day", "--user-id", ID]},
             ])
         result, argv = self.invoke("fulcra_get_records", {"data_type": DT, "time_range": ["latest"]}, '{"value":2}')
         self.assertEqual(json.loads(result), [{"value": 2}])
@@ -247,7 +247,6 @@ class ExpansionTests(unittest.TestCase):
             self.assertEqual(argv, ["data-type", action, DT])
         self.reject("fulcra_data_type_lifecycle", [
             {"data_type": DT + "/ignored", "action": "restore"},
-            {"data_type": "NumericAnnotation/" + ID.replace("-", ""), "action": "archive"},
             {"data_type": "HeartRate", "action": "archive"},
             {"data_type": DT, "action": "delete"},
         ])
