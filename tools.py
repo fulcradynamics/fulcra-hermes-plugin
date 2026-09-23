@@ -175,20 +175,12 @@ def _run_cli(arguments, *, timeout=180):
     except OSError:
         raise RuntimeError("Could not start Fulcra CLI; check the host's uv installation.") from None
     if result.returncode:
-        # Never echo arbitrary diagnostics: API bodies/tracebacks may contain tokens,
-        # auth URLs, record content or credentials in formats we cannot anticipate.
-        detail = (result.stderr or result.stdout).lower()
-        if any(word in detail for word in ("credentials", "authorization", "unauthorized", "401")):
-            hint = "Authentication failed; use fulcra_auth, then fulcra_auth_device after browser approval."
-        elif "403" in detail or "forbidden" in detail:
-            hint = "Access denied; check the owner and sharing scope with fulcra_list_shares/fulcra_shared_data_types."
-        elif any(word in detail for word in ("schema", "validation", "api-version", "multiple api")):
-            hint = "Check fulcra_data_type_schema and the catalog api_version; record validation remains enabled."
-        elif "404" in detail or "not found" in detail:
-            hint = "Target not found; copy the exact ID/path from the corresponding catalog, share or file read tool."
-        else:
-            hint = "Check parameters and permissions; retry or inspect the pinned CLI locally with secrets redacted."
-        raise RuntimeError(f"Fulcra CLI exited with status {result.returncode}. {hint} Diagnostic [redacted].")
+        detail = (result.stderr or result.stdout).strip() or "no diagnostic output"
+        if "--device-code" in arguments:
+            detail = detail.replace(arguments[arguments.index("--device-code") + 1], "[redacted]")
+        if len(detail) > 2000:
+            detail = detail[:2000] + "… [truncated]"
+        raise RuntimeError(f"Fulcra CLI exited with status {result.returncode}: {detail}")
     output = result.stdout.strip()
     # Empty JSONL means zero rows; text mutations may exit successfully without a
     # body. JSON-object consumers validate their own contract. Auth must return codes.

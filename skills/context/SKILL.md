@@ -81,8 +81,8 @@ description: Use the pinned CLI-backed Fulcra tools for catalog discovery, recor
 - File text previews read at most 12000 bytes; use local downloads for complete
   content. All downloads still fetch the entire file.
 - Empty JSONL streams mean no rows. Empty successful text mutation output is not a
-  subprocess failure; do not invent IDs/counts. Nonzero exits are errors. Error
-  details are intentionally redacted to avoid leaking credentials.
+  subprocess failure; do not invent IDs/counts. Nonzero exits include the CLI's
+  diagnostic text, bounded to 2000 characters with the device code redacted.
 - Mutating tools need the user's intended target and scope. A CLI success is not
   read-back verification: use the relevant read tool before claiming completion.
   Do not blindly retry writes after timeouts; check whether the effect occurred.

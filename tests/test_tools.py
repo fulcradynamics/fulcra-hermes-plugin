@@ -55,19 +55,21 @@ class AdapterTests(unittest.TestCase):
                     self.assertEqual(tools._run_cli(argv), "")
             self.assertIn("empty response", tools.fulcra_auth({}))
 
-    def test_raw_cli_diagnostics_never_expose_credentials(self):
+    def test_cli_failure_preserves_diagnostics_and_exit_status(self):
         tools = load_tools()
-        for diagnostic in ('Authorization: Bearer secret-token', '{"refresh_token":"secret-refresh"}',
-                           'https://example.test?token=secret-query', 'No credentials found secret-extra',
-                           'HTTP Error 403 secret-denied'):
-            with self.subTest(diagnostic=diagnostic), \
+        for stdout, stderr, expected in (
+            ("", "Error: No credentials found, please run `fulcra auth login`", "Error: No credentials found, please run `fulcra auth login`"),
+            ("", "Error: The start_time must include a timezone offset", "Error: The start_time must include a timezone offset"),
+            ("fallback diagnostic", "", "fallback diagnostic"),
+            ("ignored stdout", "primary diagnostic", "primary diagnostic"),
+            ("", "", "no diagnostic output"),
+        ):
+            with self.subTest(stderr=stderr, stdout=stdout), \
                  patch.object(tools, "_runtime_context", return_value=(True, {"PATH": "/bin"})), \
                  patch("shutil.which", return_value="/bin/uv"), \
-                 patch("subprocess.run", return_value=subprocess.CompletedProcess([], 1, "", diagnostic)):
+                 patch("subprocess.run", return_value=subprocess.CompletedProcess([], 2, stdout, stderr)):
                 result = tools.fulcra_data_catalog({})
-            self.assertNotIn("secret-", result)
-            self.assertIn("Error", result)
-            self.assertLess(len(result), 1000)
+            self.assertEqual(result, f"Error: Fulcra CLI exited with status 2: {expected}")
 
     def test_catalog_filters_and_bounded_json(self):
         tools = load_tools()
