@@ -38,7 +38,7 @@ login can also be reused.
 Use `fulcra_data_catalog` to discover IDs, `fulcra_data_type_schema` before writing
 records, and `fulcra_list_shares` before changing access. Mutations require explicit
 targets; sharing requires explicit recipients and scope. Read back changes before
-claiming completion. Large read results can be exported to a new local JSON file.
+claiming completion. Tools return CLI output without plugin-imposed size caps.
 
 The bundled [usage skill](skills/context/SKILL.md) explains the available tools.
 Authentication uses `fulcra_auth` and `fulcra_auth_device`.

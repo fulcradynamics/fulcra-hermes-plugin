@@ -61,11 +61,10 @@ See [Hermes Python dependencies](https://hermes-agent.nousresearch.com/docs/deve
 The adapter uses argument arrays without a shell, closes stdin, and captures
 stdout and stderr separately. Ordinary calls time out after 180 seconds.
 Authentication completion allows 1080 seconds, including a 900-second polling
-window. JSON Lines are parsed as complete JSON arrays. Lists default to 200 items
-(maximum 2000); model output is capped at 24000 characters. Read tools can export
-complete JSON to a new local file. File previews read at most 12000 bytes.
-These output limits do not limit the CLI's server fetch. Data-type creation does
-not expose the CLI's optional timeline-preference update.
+window. Tools preserve CLI output, including JSON Lines and whitespace, without
+plugin-imposed size caps or truncation. Combined share listings add direction
+labels; file downloads return full UTF-8 text or save exact local bytes.
+Data-type creation does not expose the optional timeline-preference update.
 
 Settings and the credential-scrubbed child environment are resolved at call time
 through Hermes's profile-aware helpers. Older Hermes versions without
@@ -82,7 +81,7 @@ even if dependencies are cached. It has no offline/cache-only mode.
   OS-user storage, not per-profile or per-Discord-user storage. Separate accounts
   need a follow-up change to the CLI; uv isolation is not a security sandbox.
 - Authentication output is text. The CLI accepts the device code in argv, where
-  local process inspection may expose it. The adapter returns bounded CLI failure
+  local process inspection may expose it. The adapter returns full CLI failure
   diagnostics, redacts the device code, and does not log command lines. Structured output and
   stdin-based code input remain CLI follow-ups.
 - The CLI version is pinned, but transitive dependencies are not fully locked.

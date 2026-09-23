@@ -27,30 +27,19 @@ class ExpansionTests(unittest.TestCase):
                 self.assertTrue(result.startswith("Error"), result)
                 run.assert_not_called()
 
-    def test_invalid_cli_json_is_not_returned_as_valid_data(self):
-        for raw in ('{"value":NaN}', '{"value":Infinity}', '[1,2]', 'not json', ''):
-            with self.subTest(raw=raw), patch.object(self.tools, "_run_cli", return_value=raw):
-                result = self.tools.fulcra_data_type_schema({"data_type": DT})
-                self.assertTrue(result.startswith("Error"), result)
-
-    def test_large_reads_export_complete_json_without_overwriting(self):
-        rows = [{"value": i, "note": "x" * 1000} for i in range(40)]
-        with tempfile.TemporaryDirectory() as directory:
-            output = Path(directory) / "records.json"
-            result, argv = self.invoke("fulcra_get_records", {
-                "data_type": DT, "time_range": ["1 day"], "limit": 1, "output_path": str(output)}, json.dumps(rows))
-            self.assertEqual(json.loads(output.read_text()), rows)
-            self.assertEqual(json.loads(result)["output_path"], str(output))
-            self.assertNotIn(str(output), argv)
-            self.reject("fulcra_get_records", [{"data_type": DT, "time_range": ["1 day"], "output_path": str(output)}])
-        result, _ = self.invoke("fulcra_get_records", {"data_type": DT, "time_range": ["1 day"], "limit": 2}, json.dumps(rows))
-        parsed = json.loads(result)
-        self.assertEqual(parsed["returned"], len(parsed["items"]))
-        self.assertEqual(parsed["available"], len(rows))
-        self.assertTrue(parsed["truncated"])
-        result, _ = self.invoke("fulcra_data_type_schema", {"data_type": DT}, json.dumps({"large": "x" * 30000}))
-        self.assertTrue(json.loads(result)["data_omitted"])
-        self.assertLess(len(result), 24000)
+    def test_read_tools_preserve_complete_cli_output(self):
+        raw = '\n'.join(json.dumps({"note": "x" * 100}) for _ in range(2100)) + '\n'
+        for name, args in (
+            ("fulcra_data_catalog", {}),
+            ("fulcra_get_records", {"data_type": DT, "time_range": ["1 day"]}),
+            ("fulcra_data_type_schema", {"data_type": DT}),
+            ("fulcra_data_updates", {"time_range": ["1 day"]}),
+            ("fulcra_file_list", {}),
+            ("fulcra_file_stat", {"path": "/notes/test.txt"}),
+        ):
+            with self.subTest(tool=name):
+                result, _ = self.invoke(name, args, raw)
+                self.assertEqual(result, raw)
 
     def test_auth_rejects_unknown_arguments_before_cli(self):
         self.reject("fulcra_auth", [{"reset": True}, None])
@@ -67,20 +56,21 @@ class ExpansionTests(unittest.TestCase):
 
     def test_file_upload_preserves_text_and_local_bytes_without_leaking_temp_files(self):
         seen = []
+        content = "--literal text\n" + "x" * 4_200_000
         def boundary(argv):
             self.assertEqual(argv[:2], ["file", "upload"])
             self.assertEqual(argv[3], "/notes/test.txt")
             path = Path(argv[2])
             seen.append(path)
-            self.assertEqual(path.read_bytes(), b"--literal text\n")
+            self.assertEqual(path.read_bytes(), content.encode())
             return "Uploaded"
         with patch.object(self.tools, "_run_cli", side_effect=boundary):
-            result = self.tools.fulcra_file_upload({"path": "/notes/test.txt", "content": "--literal text\n"})
+            result = self.tools.fulcra_file_upload({"path": "/notes/test.txt", "content": content})
         self.assertFalse(result.startswith("Error"), result)
         self.assertFalse(seen[0].exists())
         with tempfile.TemporaryDirectory() as directory:
             local = Path(directory) / "input.bin"
-            local.write_bytes(b"--literal text\n")
+            local.write_bytes(content.encode())
             with patch.object(self.tools, "_run_cli", side_effect=boundary):
                 result = self.tools.fulcra_file_upload({"path": "/notes/test.txt", "local_path": str(local)})
             self.assertFalse(result.startswith("Error"), result)
@@ -92,24 +82,24 @@ class ExpansionTests(unittest.TestCase):
 
     def test_file_download_returns_text_or_exclusive_local_file(self):
         seen = []
+        content = "  " + "é" * 13000 + "\n\n"
         def boundary(argv):
             self.assertEqual(argv[:3], ["file", "download", "/notes/test.txt"])
             seen.append(Path(argv[3]))
-            seen[-1].write_bytes(b"hello\n")
+            seen[-1].write_bytes(content.encode("utf-8"))
             return "Downloaded"
         with patch.object(self.tools, "_run_cli", side_effect=boundary):
-            result = json.loads(self.tools.fulcra_file_download({"path": "/notes/test.txt"}))
-        self.assertEqual(result["content"], "hello\n")
-        self.assertFalse(result["truncated"])
+            result = self.tools.fulcra_file_download({"path": "/notes/test.txt"})
+        self.assertEqual(result, content)
         self.assertFalse(seen[-1].exists())
         with tempfile.TemporaryDirectory() as directory:
             local = Path(directory) / "saved.txt"
             with patch.object(self.tools, "_run_cli", side_effect=boundary):
-                result = json.loads(self.tools.fulcra_file_download({"path": "/notes/test.txt", "local_path": str(local)}))
-            self.assertEqual(local.read_bytes(), b"hello\n")
-            self.assertEqual(result["local_path"], str(local))
+                result = self.tools.fulcra_file_download({"path": "/notes/test.txt", "local_path": str(local)})
+            self.assertEqual(local.read_bytes(), content.encode("utf-8"))
+            self.assertIn(str(local), result)
             self.reject("fulcra_file_download", [{"path": "/notes/test.txt", "local_path": str(local)}])
-            self.assertEqual(local.read_bytes(), b"hello\n")
+            self.assertEqual(local.read_bytes(), content.encode("utf-8"))
         def binary(argv):
             Path(argv[3]).write_bytes(b"\xff\x00")
             return "Downloaded"
@@ -118,7 +108,7 @@ class ExpansionTests(unittest.TestCase):
 
     def test_file_metadata_delete_restore_and_share_keep_cli_capabilities(self):
         for name, args, expected, output in (
-            ("fulcra_file_list", {"path": "/notes/", "user_id": ID, "limit": 1}, ["file", "list", "/notes/", "--user-id", ID], "folder/\n1B 2026-01-01 test.txt"),
+            ("fulcra_file_list", {"path": "/notes/", "user_id": ID}, ["file", "list", "/notes/", "--user-id", ID], "folder/\n1B 2026-01-01 test.txt"),
             ("fulcra_file_stat", {"path": "/notes/test.txt"}, ["file", "stat", "/notes/test.txt"], "Version: " + ID),
             ("fulcra_file_delete", {"path": "/notes/test.txt"}, ["file", "delete", "/notes/test.txt"], "Deleted"),
             ("fulcra_file_restore", {"version_id": ID}, ["file", "restore", ID], "Restored"),
@@ -126,8 +116,7 @@ class ExpansionTests(unittest.TestCase):
         ):
             result, argv = self.invoke(name, args, output)
             self.assertEqual(argv, expected)
-            if name == "fulcra_file_list":
-                self.assertTrue(json.loads(result)["truncated"])
+            self.assertEqual(result, output)
 
 
     def test_share_creation_requires_explicit_recipients_and_scope(self):
@@ -155,9 +144,9 @@ class ExpansionTests(unittest.TestCase):
 
     def test_share_reads_delete_and_leave_use_distinct_identifiers(self):
         with patch.object(self.tools, "_run_cli", side_effect=['{"grant_id":"fixture"}', '']) as run:
-            result = json.loads(self.tools.fulcra_list_shares({"direction": "both"}))
+            result = self.tools.fulcra_list_shares({"direction": "both"})
         self.assertEqual([c.args[0] for c in run.call_args_list], [["share", "list-incoming"], ["share", "list-outgoing"]])
-        self.assertEqual(result, {"incoming": [{"grant_id": "fixture"}], "outgoing": []})
+        self.assertEqual(result, 'incoming:\n{"grant_id":"fixture"}\n\noutgoing:\n')
         for name, field, command in (("fulcra_delete_share", "share_id", "delete"), ("fulcra_leave_share", "grant_id", "leave")):
             _, argv = self.invoke(name, {field: ID}, "Success")
             self.assertEqual(argv, ["share", command, ID])
@@ -170,6 +159,7 @@ class ExpansionTests(unittest.TestCase):
         for name, field, rows, command in (
             ("fulcra_record", "record", {"value": -2, "note": "--help; literal\u0000"}, "record"),
             ("fulcra_record", "records", [{"value": 1}, {"value": 2}], "record"),
+            ("fulcra_record", "record", {"note": "x" * 4_200_000}, "record"),
             ("fulcra_delete_records", "record", {"record_id": ID}, "delete"),
             ("fulcra_delete_records", "records", [{"record_id": ID}, {"record_id": ID}], "delete"),
         ):
@@ -201,7 +191,7 @@ class ExpansionTests(unittest.TestCase):
             {"data_type": DT, "record_id": ID, "records": [{"record_id": ID}]},
         ])
 
-    def test_record_queries_and_updates_validate_time_and_bound_output(self):
+    def test_record_queries_preserve_cli_time_ranges_and_owner_selection(self):
         for name, prefix in (("fulcra_get_records", ["get-records", DT]), ("fulcra_data_updates", ["data-updates"])):
             base = {"data_type": DT} if name == "fulcra_get_records" else {}
             _, argv = self.invoke(name, {**base, "time_range": ["2 days"], "user_id": ID}, '[]' if base else '{}')
@@ -209,13 +199,14 @@ class ExpansionTests(unittest.TestCase):
             self.reject(name, [
                 {**base, "time_range": ["2026-01-01T00:00:00", "2026-01-02T00:00:00Z"]},
                 {**base, "time_range": ["2026-01-02T00:00:00Z", "2026-01-01T00:00:00Z"]},
-                {**base, "time_range": ["2026-01-01"]}, {**base, "time_range": ["--help"]},
-                {**base, "time_range": ["0 days"]},
+                {**base, "time_range": ["--help"]},
                 {**base, "time_range": ["1 day", "--user-id", ID]},
             ])
         result, argv = self.invoke("fulcra_get_records", {"data_type": DT, "time_range": ["latest"]}, '{"value":2}')
-        self.assertEqual(json.loads(result), [{"value": 2}])
+        self.assertEqual(result, '{"value":2}')
         self.assertEqual(argv, ["get-records", DT, "latest"])
+        _, argv = self.invoke("fulcra_get_records", {"data_type": DT, "time_range": ["yesterday"]})
+        self.assertEqual(argv, ["get-records", DT, "yesterday"])
         self.reject("fulcra_data_updates", [{"time_range": ["latest"]}])
         self.reject("fulcra_get_records", [
             {"data_type": DT, "time_range": ["1 day"], "group_id": ID},

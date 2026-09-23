@@ -79,13 +79,13 @@ def boundary(argv, **kwargs):
     result = runner.invoke(cli, argv)
     assert result.exit_code == 0, (argv, result.output, repr(result.exception))
     operations.append(argv[:2])
-    return result.stdout.strip()
+    return result.stdout
 
 
 def check(name, args):
     result = getattr(tools, name)(args)
     assert not result.startswith("Error"), (name, result)
-    return json.loads(result)
+    return result
 
 
 tools._run_cli = boundary
@@ -108,12 +108,12 @@ with patch.object(socket.socket, "connect", side_effect=AssertionError("Network 
     check("fulcra_data_updates", {"time_range": ["2 days"], "user_id": ID})
     check("fulcra_create_share", {"name": "Fixture", "data_types": [DT], "files": ["/notes/"], "user_ids": [ID], "group_ids": [ID], "start_time": "2026-01-01T00:00:00Z"})
     check("fulcra_update_share", {"share_id": ID, "set_data_types": [DT], "set_files": ["/notes/"], "set_user_ids": [ID], "no_group_ids": True, "share_all": False, "no_start_time": True, "no_end_time": True})
-    assert check("fulcra_list_shares", {"direction": "both"})["incoming"] == [{"grant_type": "user", "grant_id": ID}]
+    assert '"grant_id": "' + ID + '"' in check("fulcra_list_shares", {"direction": "both"})
     check("fulcra_shared_data_types", {"user_id": ID, "time_range": ["1 week"]})
     check("fulcra_delete_share", {"share_id": ID})
     check("fulcra_leave_share", {"grant_id": ID})
     check("fulcra_file_upload", {"path": "/notes/test.txt", "content": "hello\n"})
-    assert check("fulcra_file_download", {"path": "/notes/test.txt", "user_id": ID})["content"] == "hello\n"
+    assert check("fulcra_file_download", {"path": "/notes/test.txt", "user_id": ID}) == "hello\n"
     check("fulcra_file_list", {"path": "/notes/", "user_id": ID})
     check("fulcra_file_stat", {"path": "/notes/test.txt"})
     check("fulcra_file_delete", {"path": "/notes/test.txt"})

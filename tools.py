@@ -6,7 +6,6 @@ import shutil
 import subprocess
 import functools
 import math
-import re
 import tempfile
 from datetime import datetime
 from pathlib import Path
@@ -15,18 +14,15 @@ from pathlib import Path
 TOOL_SCHEMAS = {}
 STRING = {"type": "string", "minLength": 1}
 BOOLEAN = {"type": "boolean"}
-LIMIT = {"type": "integer", "minimum": 1, "maximum": 2000, "default": 200}
-EXPORT = {"output_path": {"type": "string", "minLength": 1, "description": "Save the complete parsed result as JSON to a NEW absolute local file instead of returning data. Never overwrites; limit does not affect exported data."}}
-OUTPUT = {"limit": LIMIT, **EXPORT}
+
 UUID_PATTERN = r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
 UUID = {"type": "string", "pattern": "^" + UUID_PATTERN + "$"}
 DATA_TYPE = {"type": "string", "pattern": r"^[A-Za-z][A-Za-z0-9_.-]*(?:/" + UUID_PATTERN + r")?$"}
 BASE_TYPES = ["MomentAnnotation", "DurationAnnotation", "BooleanAnnotation", "NumericAnnotation", "ScaleAnnotation"]
-MAX_OUTPUT = 24000
 
 
 def _array(items=STRING):
-    return {"type": "array", "items": items, "minItems": 1, "maxItems": 2000}
+    return {"type": "array", "items": items, "minItems": 1}
 
 
 def _enum(*values):
@@ -55,8 +51,6 @@ def _tool(name, description, properties, required=()):
                     path = _pos(args["path"])
                     if not path.startswith("/") or "\\" in path or "//" in path or any(p in (".", "..") for p in path.split("/")):
                         raise ValueError("Use an explicit absolute remote path without dot segments.")
-                if "output_path" in args:
-                    _local_path(args["output_path"], new=True)
                 return fn(args)
             except (ValueError, RuntimeError) as exc:
                 return f"Error: {exc}"
@@ -86,49 +80,6 @@ def _options(args, mapping):
     return result
 
 
-def _json_output(raw, *, rows=False):
-    try:
-        if not raw:
-            if rows:
-                return []
-            raise ValueError()
-        if rows:
-            parsed = json.loads(raw) if raw.startswith("[") else [json.loads(line) for line in raw.splitlines() if line.strip()]
-            if not isinstance(parsed, list) or any(not isinstance(row, dict) for row in parsed):
-                raise ValueError()
-        else:
-            parsed = json.loads(raw)
-            if not isinstance(parsed, dict):
-                raise ValueError()
-        # Python's JSON decoder permits NaN/Infinity and overflow; model JSON must not.
-        json.dumps(parsed, allow_nan=False)
-        return parsed
-    except ValueError:
-        raise RuntimeError("Fulcra CLI returned invalid JSON; retry or report the CLI incompatibility.") from None
-
-
-def _bounded(value, args):
-    if "output_path" in args:
-        target = _local_path(args["output_path"], new=True)
-        with os.fdopen(os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "w", encoding="utf-8") as stream:
-            json.dump(value, stream, ensure_ascii=False, allow_nan=False)
-            stream.write("\n")
-        return json.dumps({"output_path": str(target), "bytes": target.stat().st_size, "truncated": False})
-    if isinstance(value, list):
-        items = []
-        size = 2  # JSON array brackets.
-        for item in value[:args.get("limit", 200)]:
-            size += len(json.dumps(item)) + (2 if items else 0)
-            if size > MAX_OUTPUT - 500:
-                break
-            items.append(item)
-        if len(items) != len(value):
-            return json.dumps({"items": items, "returned": len(items), "available": len(value), "truncated": True})
-    encoded = json.dumps(value, indent=2)
-    if len(encoded) > MAX_OUTPUT:
-        return json.dumps({"truncated": True, "data_omitted": True,
-                           "message": "Response exceeds 24000 characters; narrow the query or use output_path where supported."})
-    return encoded
 
 FULCRA_PACKAGE = "fulcra-api==0.1.42"
 
@@ -178,12 +129,10 @@ def _run_cli(arguments, *, timeout=180):
         detail = (result.stderr or result.stdout).strip() or "no diagnostic output"
         if "--device-code" in arguments:
             detail = detail.replace(arguments[arguments.index("--device-code") + 1], "[redacted]")
-        if len(detail) > 2000:
-            detail = detail[:2000] + "… [truncated]"
+
         raise RuntimeError(f"Fulcra CLI exited with status {result.returncode}: {detail}")
-    output = result.stdout.strip()
-    # Empty JSONL means zero rows; text mutations may exit successfully without a
-    # body. JSON-object consumers validate their own contract. Auth must return codes.
+    output = result.stdout
+    # Empty read/mutation output is valid; authentication must return its codes.
     if not output and arguments[:2] == ["auth", "login"]:
         raise RuntimeError("Fulcra CLI returned an empty response.")
     return output
@@ -192,37 +141,27 @@ def _run_cli(arguments, *, timeout=180):
 @_tool("fulcra_auth", "Start noninteractive browser authentication; return an auth URL and device code. Wait for browser approval before fulcra_auth_device. Does not reset existing credentials.", {})
 def fulcra_auth(args):
     """Start the noninteractive device flow; never open a browser on the host."""
-    output = _run_cli(["auth", "login", "--get-auth-url"])
-    if len(output) > MAX_OUTPUT - 300:
-        raise RuntimeError("Authentication response is unexpectedly large; retry or inspect the pinned CLI locally.")
-    return output + (
-        "\n\nWait for the user to complete browser authorization, then call "
-        "fulcra_auth_device with the returned device code. Use the tool rather "
-        "than running the printed CLI command."
-    )
+    return _run_cli(["auth", "login", "--get-auth-url"])
 
 
 @_tool("fulcra_auth_device", "Finish authentication only after browser approval using the device_code from fulcra_auth. CLI persists credentials in OS-user storage, shared by Hermes profiles.", {"device_code": STRING}, ("device_code",))
 def fulcra_auth_device(args):
     """Finish the device flow and let the CLI persist its own credentials."""
-    output = _run_cli(
+    return _run_cli(
         ["auth", "login", "--device-code", _pos(args["device_code"]),
          "--poll-timeout", "900", "--poll-interval", "5"], timeout=1080)
-    if len(output) > MAX_OUTPUT:
-        raise RuntimeError("Authentication response is unexpectedly large; inspect login status locally before retrying.")
-    return output
 
 
-@_tool("fulcra_data_catalog", "Discover exact data type IDs before querying or writing. Filter recordable/base types before fulcra_create_data_type; inspect fulcra_data_type_schema before fulcra_record. Results are bounded, not server pagination.", {
+@_tool("fulcra_data_catalog", "Discover data type IDs before querying or writing. Filter by name, category, owner, API version, or recordable/queryable/base types. Returns the CLI catalog output.", {
     "data_type": DATA_TYPE, "name": STRING, "base_types_only": BOOLEAN,
     "recordable_only": BOOLEAN, "queryable_only": BOOLEAN, "category": STRING,
-    "api_version": STRING, "user_id": UUID, **OUTPUT})
+    "api_version": STRING, "user_id": UUID})
 def fulcra_data_catalog(args):
     command = ["catalog"] + _options(args, {
         "data_type": "--data-type", "name": "--name", "base_types_only": "--base-types-only",
         "recordable_only": "--recordable-only", "queryable_only": "--queryable-only",
         "category": "--category", "api_version": "--api-version", "user_id": "--user-id"})
-    return _bounded(_json_output(_run_cli(command), rows=True), args)
+    return _run_cli(command)
 
 
 @_tool("fulcra_create_data_type", "Create a user-defined annotation type, not records. Discover base types with fulcra_data_catalog, then inspect fulcra_data_type_schema and use fulcra_record. ScaleAnnotation requires five labels; metric options apply only to metrics.", {
@@ -239,14 +178,14 @@ def fulcra_create_data_type(args):
     command = ["data-type", "create", _pos(base), _pos(args["name"])] + _options(args, {
         "description": "--description", "tags": "--tag", "metric_kind": "--kind",
         "default_value": "--value", "unit": "--unit", "scale_labels": "--scale-label"})
-    return _bounded(_json_output(_run_cli(command)), args)
+    return _run_cli(command)
 
 
 @_tool("fulcra_data_type_schema", "Read the JSON record schema before fulcra_record. Use api_version to disambiguate catalog entries; user_id selects a shared owner's schema.", {
-    "data_type": DATA_TYPE, "api_version": STRING, "user_id": UUID, **EXPORT}, ("data_type",))
+    "data_type": DATA_TYPE, "api_version": STRING, "user_id": UUID}, ("data_type",))
 def fulcra_data_type_schema(args):
     command = ["data-type", "schema", _pos(args["data_type"])] + _options(args, {"api_version": "--api-version", "user_id": "--user-id"})
-    return _bounded(_json_output(_run_cli(command)), args)
+    return _run_cli(command)
 
 
 @_tool("fulcra_data_type_lifecycle", "Archive or restore your user-defined annotation type. This changes availability of the type, not a request to delete individual records. Requires the complete BaseAnnotation/UUID ID.", {
@@ -258,11 +197,11 @@ def fulcra_data_type_lifecycle(args):
     if len(parts) != 2 or parts[0] not in BASE_TYPES:
         raise ValueError("data_type must be a complete BaseAnnotation/UUID ID from fulcra_data_catalog.")
     raw = _run_cli(["data-type", args["action"], _pos(args["data_type"])])
-    return _bounded(_json_output(raw) if args["action"] == "restore" else {"message": raw}, args)
+    return raw
 
 
 TIME_RANGE = {"type": "array", "items": STRING, "minItems": 1, "maxItems": 2,
-              "description": "Two ISO8601 timestamps with timezone and end after start, or one positive relative interval such as '2 days' or '3h'. Only get_records accepts 'latest'."}
+              "description": "Two ISO8601 timestamps with timezone and end after start, or one CLI time expression such as '2 days' or 'yesterday'. Only get_records accepts 'latest'."}
 
 
 def _timestamp(value):
@@ -282,16 +221,13 @@ def _times(args, *, latest=False):
     if len(values) == 2:
         if _timestamp(values[1]) <= _timestamp(values[0]):
             raise ValueError("end time must be after start time.")
-    elif not (latest and values[0] == "latest"):
-        if not re.fullmatch(r"[1-9][0-9]*\s*(?:s|m|h|d|w|seconds?|minutes?|hours?|days?|weeks?|months?|years?)(?: ago)?", values[0]):
-            raise ValueError("Use a positive relative interval (e.g. '2 days', '3h') or two timezone-aware ISO8601 times.")
-    return values
+    elif values[0].lower() == "latest" and not latest:
+        raise ValueError("latest is supported only by fulcra_get_records.")
+    return [_pos(value) for value in values]
 
 
 def _record_file(command, rows):
     payload = "\n".join(json.dumps(row, allow_nan=False) for row in rows)
-    if len(payload.encode("utf-8")) > 4 * 1024 * 1024:
-        raise ValueError("Batch exceeds 4 MiB; split it into smaller requests.")
     with tempfile.TemporaryDirectory(prefix="fulcra-record-") as directory:
         path = Path(directory) / "records.jsonl"
         with path.open("x", encoding="utf-8") as stream:
@@ -308,7 +244,7 @@ def fulcra_record(args):
         raise ValueError("Provide exactly one of record or records.")
     rows = [args["record"]] if "record" in args else args["records"]
     command = ["record", _pos(args["data_type"])] + _options(args, {"api_version": "--api-version", "tags": "--tag", "sources": "--source"})
-    return _bounded({"message": _record_file(command, rows)}, args)
+    return _record_file(command, rows)
 
 
 DELETION = {"type": "object", "properties": {"record_id": UUID}, "required": ["record_id"], "additionalProperties": False}
@@ -328,25 +264,25 @@ def fulcra_delete_records(args):
     else:
         rows = [args["record"]] if "record" in args else args["records"]
         raw = _record_file(command, rows)
-    return _bounded({"message": raw}, args)
+    return raw
 
 
-@_tool("fulcra_get_records", "Read raw records using exact IDs from fulcra_data_catalog. Raw sources can overlap; do not sum without prioritizing/deduplicating. Use fulcra_shared_data_types before reading another user's data. limit bounds returned model rows, not the server query; narrow time_range for large datasets.", {
+@_tool("fulcra_get_records", "Read raw records using IDs from fulcra_data_catalog. Raw sources can overlap; do not sum without prioritizing/deduplicating. Use fulcra_shared_data_types before reading another user's data.", {
     "data_type": DATA_TYPE, "time_range": TIME_RANGE, "user_id": UUID,
-    "group_id": UUID, "participant_id": STRING, **OUTPUT}, ("data_type", "time_range"))
+    "group_id": UUID, "participant_id": STRING}, ("data_type", "time_range"))
 def fulcra_get_records(args):
     if ("group_id" in args) != ("participant_id" in args) or ("group_id" in args and "user_id" in args):
         raise ValueError("Use user_id OR the pair group_id and participant_id.")
     command = ["get-records", _pos(args["data_type"]), *_times(args, latest=True)] + _options(args, {
         "user_id": "--user-id", "group_id": "--group-id", "participant_id": "--participant-id"})
-    return _bounded(_json_output(_run_cli(command), rows=True), args)
+    return _run_cli(command)
 
 
 @_tool("fulcra_data_updates", "Read data/file processing updates during a time range, not record event times. Useful after fulcra_record or upload; no latest mode. user_id requires shared access.", {
-    "time_range": TIME_RANGE, "user_id": UUID, **EXPORT}, ("time_range",))
+    "time_range": TIME_RANGE, "user_id": UUID}, ("time_range",))
 def fulcra_data_updates(args):
     command = ["data-updates", *_times(args)] + _options(args, {"user_id": "--user-id"})
-    return _bounded(_json_output(_run_cli(command)), args)
+    return _run_cli(command)
 
 
 REMOTE_PATH = {"type": "string", "pattern": r"^/[^\x00]*$", "description": "Explicit absolute POSIX remote path. '/' shares/lists the entire file tree; directory prefixes include future files."}
@@ -378,7 +314,7 @@ def fulcra_create_share(args):
     command = ["share", "create"] + _options(args, {
         "name": "--name", "data_types": "--data-type", "files": "--file", "user_ids": "--user-id",
         "group_ids": "--group-id", "start_time": "--start-time", "end_time": "--end-time", "share_all": "--share-all"})
-    return _bounded(_json_output(_run_cli(command)), args)
+    return _run_cli(command)
 
 
 SHARE_LIST_FIELDS = {"data_types": (DATA_TYPE, "data-type"), "files": (REMOTE_PATH, "file"),
@@ -419,43 +355,41 @@ def fulcra_update_share(args):
         "no_end_time": "--no-end-time", "clear": "--clear"})
     if "share_all" in args:
         command.append("--share-all-data" if args["share_all"] else "--no-share-all-data")
-    return _bounded(_json_output(_run_cli(command)), args)
+    return _run_cli(command)
 
 
-@_tool("fulcra_list_shares", "List incoming grants, outgoing shares, or both (default). Incoming grant_id is for fulcra_leave_share; outgoing share ID is for fulcra_update_share/delete_share. Group grants cannot be left individually. Each direction is independently bounded; entries are grants, not unique owners.", {
-    "direction": _enum("incoming", "outgoing", "both"), **OUTPUT})
+@_tool("fulcra_list_shares", "List incoming grants, outgoing shares, or both (default). With both, CLI outputs are labeled by direction. Incoming grant_id is for fulcra_leave_share; outgoing share ID is for fulcra_update_share/delete_share. Group grants cannot be left individually.", {
+    "direction": _enum("incoming", "outgoing", "both")})
 def fulcra_list_shares(args):
     direction = args.get("direction", "both")
     if direction not in ("incoming", "outgoing", "both"):
         raise ValueError("direction must be incoming, outgoing or both.")
-    result = {}
-    for current in ("incoming", "outgoing") if direction == "both" else (direction,):
-        rows = _json_output(_run_cli(["share", "list-" + current]), rows=True)
-        # Keep per-direction truncation metadata, not an invented combined total.
-        result[current] = rows if "output_path" in args else json.loads(_bounded(rows, args))
-    return _bounded(result, args)
+    if direction != "both":
+        return _run_cli(["share", "list-" + direction])
+    return "\n\n".join(f"{current}:\n{_run_cli(['share', 'list-' + current])}"
+                       for current in ("incoming", "outgoing"))
 
 
 @_tool("fulcra_delete_share", "Revoke an entire outgoing share you created, removing every recipient's access through it. Read fulcra_list_shares outgoing and confirm scope first. This does not delete underlying records/files.", {"share_id": UUID}, ("share_id",))
 def fulcra_delete_share(args):
-    return _bounded({"message": _run_cli(["share", "delete", _pos(args["share_id"])])}, args)
+    return _run_cli(["share", "delete", _pos(args["share_id"])])
 
 
 @_tool("fulcra_leave_share", "Give up your individual incoming grant. Use grant_id (not share ID) from fulcra_list_shares. Group grants cannot be left with this tool; group membership management is outside this surface.", {"grant_id": UUID}, ("grant_id",))
 def fulcra_leave_share(args):
-    return _bounded({"message": _run_cli(["share", "leave", _pos(args["grant_id"])])}, args)
+    return _run_cli(["share", "leave", _pos(args["grant_id"])])
 
 
 @_tool("fulcra_shared_data_types", "Check what an owner shares with you before querying their records. Request a window strictly inside the grant's boundaries: its end comparison is strict. all_data_types=true with an empty type list means everything is shared, not nothing. Includes group grants.", {
-    "user_id": UUID, "time_range": TIME_RANGE, **EXPORT}, ("user_id", "time_range"))
+    "user_id": UUID, "time_range": TIME_RANGE}, ("user_id", "time_range"))
 def fulcra_shared_data_types(args):
-    return _bounded(_json_output(_run_cli(["share", "shared-data-types", _pos(args["user_id"]), *_times(args)])), args)
+    return _run_cli(["share", "shared-data-types", _pos(args["user_id"]), *_times(args)])
 
 
 def _local_path(value, *, new=False):
     path = Path(value)
     if not path.is_absolute():
-        raise ValueError("local_path/output_path must be an absolute local file path.")
+        raise ValueError("local_path must be an absolute local file path.")
     if new:
         if path.exists() or path.is_symlink():
             raise ValueError("Destination already exists; choose a new local file path (no overwrites).")
@@ -476,8 +410,6 @@ def fulcra_file_upload(args):
         path = _local_path(args["local_path"])
         raw = _run_cli(["file", "upload", str(path), args["path"]])
     else:
-        if len(args["content"].encode("utf-8")) > 4 * 1024 * 1024:
-            raise ValueError("Text content exceeds 4 MiB; use local_path.")
         with tempfile.TemporaryDirectory(prefix="fulcra-upload-") as directory:
             path = Path(directory) / "content.txt"
             with path.open("x", encoding="utf-8", newline="") as stream:
@@ -485,10 +417,10 @@ def fulcra_file_upload(args):
                 stream.write(args["content"])
             raw = _run_cli(["file", "upload", str(path), args["path"]])
             raw = raw.replace(str(path), "[text content]")
-    return _bounded({"message": raw}, args)
+    return raw
 
 
-@_tool("fulcra_file_download", "Download the latest remote file version. With local_path, save exact bytes to a NEW absolute file (never overwrite). Without it, return a bounded UTF-8 text preview; binary content requires local_path. user_id selects a shared owner's file. Temporary downloads are cleaned up.", {
+@_tool("fulcra_file_download", "Download the latest remote file version. With local_path, save exact bytes to a new absolute local file without overwriting. Otherwise return the full UTF-8 text. Binary files require local_path; user_id selects a shared owner.", {
     "path": REMOTE_PATH, "local_path": STRING, "user_id": UUID}, ("path",))
 def fulcra_file_download(args):
     target = _local_path(args["local_path"], new=True) if "local_path" in args else None
@@ -497,53 +429,46 @@ def fulcra_file_download(args):
         _run_cli(["file", "download", args["path"], str(staged)] + _options(args, {"user_id": "--user-id"}))
         if not staged.is_file():
             raise RuntimeError("CLI reported success but did not create the downloaded file.")
-        size = staged.stat().st_size
+
         if target is not None:
             # Exclusive create also protects against destination races and symlinks.
             with target.open("xb") as destination:
                 target.chmod(0o600)
                 with staged.open("rb") as source:
                     shutil.copyfileobj(source, destination)
-            return _bounded({"local_path": str(target), "bytes": size}, args)
-        with staged.open("rb") as source:
-            preview = source.read(12000)
+            return f"Downloaded {args['path']} to {target}"
         try:
-            # Incremental decoding avoids splitting a multibyte character at the preview boundary.
-            import codecs
-            content = codecs.getincrementaldecoder("utf-8")().decode(preview, final=size <= len(preview))
-            if "\x00" in content:
-                raise UnicodeError()
-        except UnicodeError:
+            return staged.read_bytes().decode("utf-8")
+        except UnicodeDecodeError:
             raise ValueError("File is not UTF-8 text; supply local_path to download exact bytes.") from None
-        return _bounded({"content": content, "bytes": size, "truncated": size > len(preview)}, args)
 
 
-@_tool("fulcra_file_list", "List a remote directory (default '/'), optionally for a shared owner. CLI 0.1.42 returns human-readable lines, not structured file metadata; lines are preserved without guessing filenames. limit bounds lines. Use fulcra_file_stat for versions and fulcra_file_download for contents.", {
-    "path": REMOTE_PATH, "user_id": UUID, **OUTPUT})
+@_tool("fulcra_file_list", "List a remote directory (default '/'), optionally for a shared owner. Returns CLI text. Use fulcra_file_stat for versions and fulcra_file_download for contents.", {
+    "path": REMOTE_PATH, "user_id": UUID})
 def fulcra_file_list(args):
     raw = _run_cli(["file", "list", args.get("path", "/")] + _options(args, {"user_id": "--user-id"}))
-    return _bounded(raw.splitlines(), args)
+    return raw
 
 
 @_tool("fulcra_file_stat", "Read file size, upload time and version IDs as CLI text lines. Your own files include previous versions usable by fulcra_file_restore; shared owners' files expose latest version only.", {
-    "path": REMOTE_PATH, "user_id": UUID, **OUTPUT}, ("path",))
+    "path": REMOTE_PATH, "user_id": UUID}, ("path",))
 def fulcra_file_stat(args):
     raw = _run_cli(["file", "stat", args["path"]] + _options(args, {"user_id": "--user-id"}))
-    return _bounded(raw.splitlines(), args)
+    return raw
 
 
 @_tool("fulcra_file_delete", "Delete your file at an explicit remote path. Inspect fulcra_file_stat first and retain version IDs if restoration may be needed. This is not a recursive directory delete and does not revoke shares.", {"path": REMOTE_PATH}, ("path",))
 def fulcra_file_delete(args):
-    return _bounded({"message": _run_cli(["file", "delete", args["path"]])}, args)
+    return _run_cli(["file", "delete", args["path"]])
 
 
 @_tool("fulcra_file_restore", "Restore a previous file version using its exact version UUID from fulcra_file_stat. This changes the current version at the original path; inspect stat afterward.", {"version_id": UUID}, ("version_id",))
 def fulcra_file_restore(args):
-    return _bounded({"message": _run_cli(["file", "restore", _pos(args["version_id"])])}, args)
+    return _run_cli(["file", "restore", _pos(args["version_id"])])
 
 
 @_tool("fulcra_file_share", "Grant explicit users access to the latest file versions at a path/prefix using the CLI file share command. Directories include future files; '/' grants all files. No history is granted. For groups or time bounds use fulcra_create_share with files instead. Verify with fulcra_list_shares outgoing.", {
     "path": REMOTE_PATH, "user_ids": _array(UUID), "name": STRING}, ("path", "user_ids"))
 def fulcra_file_share(args):
     command = ["file", "share", args["path"]] + _options(args, {"user_ids": "--to", "name": "--name"})
-    return _bounded(_json_output(_run_cli(command)), args)
+    return _run_cli(command)

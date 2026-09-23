@@ -33,7 +33,7 @@ class AdapterTests(unittest.TestCase):
         modules.start()
         self.addCleanup(modules.stop)
 
-    def test_auth_unexpected_errors_are_safe_and_success_output_is_bounded(self):
+    def test_auth_unexpected_errors_are_safe_and_output_is_complete(self):
         tools = load_tools()
         for handler, args in ((tools.fulcra_auth, {}), (tools.fulcra_auth_device, {"device_code": "fixture"})):
             with patch.object(tools, "_run_cli", side_effect=OSError("private-secret")):
@@ -42,7 +42,7 @@ class AdapterTests(unittest.TestCase):
             self.assertTrue(result.startswith("Error"))
             with patch.object(tools, "_run_cli", return_value="x" * 40000):
                 result = handler(args)
-            self.assertLessEqual(len(result), 24000)
+            self.assertTrue(result.startswith("x" * 40000))
 
     def test_empty_read_streams_and_silent_mutation_are_successful(self):
         tools = load_tools()
@@ -71,12 +71,12 @@ class AdapterTests(unittest.TestCase):
                 result = tools.fulcra_data_catalog({})
             self.assertEqual(result, f"Error: Fulcra CLI exited with status 2: {expected}")
 
-    def test_catalog_filters_and_bounded_json(self):
+    def test_catalog_filters_preserve_cli_output(self):
         tools = load_tools()
         with patch.object(tools, "_run_cli", return_value='{"id":"one"}\n{"id":"two"}') as run:
-            result = json.loads(tools.fulcra_data_catalog({"name": "Mood", "recordable_only": True, "limit": 1}))
+            result = tools.fulcra_data_catalog({"name": "Mood", "recordable_only": True})
         self.assertEqual(run.call_args.args[0], ["catalog", "--name", "Mood", "--recordable-only"])
-        self.assertEqual(result, {"items": [{"id": "one"}], "returned": 1, "available": 2, "truncated": True})
+        self.assertEqual(result, '{"id":"one"}\n{"id":"two"}')
         for args in ({"unknown": True}, {"name": "bad\u0000"}):
             with self.subTest(args=args), patch.object(tools, "_run_cli") as run:
                 self.assertTrue(tools.fulcra_data_catalog(args).startswith("Error"))
@@ -120,8 +120,7 @@ class AdapterTests(unittest.TestCase):
         with patch.object(tools, "_run_cli", return_value="Web auth URL: https://example.test\n- Device code: fixture") as run:
             output = tools.fulcra_auth({})
         run.assert_called_once_with(["auth", "login", "--get-auth-url"])
-        self.assertIn("fulcra_auth_device", output)
-        self.assertIn("Wait for the user", output)
+        self.assertEqual(output, "Web auth URL: https://example.test\n- Device code: fixture")
 
     def test_device_code_is_passed_as_a_single_argument(self):
         tools = load_tools()
@@ -181,14 +180,14 @@ class AdapterTests(unittest.TestCase):
         self.assertIn("timed out", output)
         self.assertNotIn("sensitive", output)
 
-    def test_cli_failure_is_bounded_and_device_code_redacted(self):
+    def test_cli_failure_is_complete_with_device_code_redacted(self):
         tools = load_tools()
         result = subprocess.CompletedProcess([], 1, "", "fixture-device " + "x" * 5000)
         with patch.object(tools, "_runtime_context", return_value=(True, {"PATH": "/bin"})), \
              patch("shutil.which", return_value="/bin/uv"), patch("subprocess.run", return_value=result):
             output = tools.fulcra_auth_device({"device_code": "fixture-device"})
         self.assertIn("[redacted]", output)
-        self.assertLess(len(output), 2500)
+        self.assertIn("x" * 5000, output)
         self.assertNotIn("fixture-device", output)
 
     def test_empty_success_is_an_error(self):
@@ -198,23 +197,14 @@ class AdapterTests(unittest.TestCase):
              patch("subprocess.run", return_value=subprocess.CompletedProcess([], 0, "", "")):
             self.assertIn("empty response", tools.fulcra_auth({}))
 
-    def test_catalog_rejects_non_json_output(self):
+    def test_catalog_preserves_json_lines_and_empty_catalog(self):
         tools = load_tools()
-        with patch.object(tools, "_run_cli", return_value="not json"):
-            self.assertTrue(tools.fulcra_data_catalog({}).startswith("Error"))
-
-    def test_catalog_normalizes_json_lines_and_empty_catalog(self):
-        tools = load_tools()
-        for raw, expected in (
-            ('{"id":"one"}\n{"id":"two"}\n', [{"id": "one"}, {"id": "two"}]),
-            ('{"id":"one"}\n', [{"id": "one"}]),
-            ('', []),
-        ):
+        for raw in ('{"id":"one"}\n{"id":"two"}\n', '{"id":"one"}\n', ''):
             with self.subTest(raw=raw), \
                  patch.object(tools, "_runtime_context", return_value=(True, {"PATH": "/bin"})), \
                  patch("shutil.which", return_value="/bin/uv"), \
                  patch("subprocess.run", return_value=subprocess.CompletedProcess([], 0, raw, "")):
-                self.assertEqual(tools.fulcra_data_catalog({}), json.dumps(expected, indent=2))
+                self.assertEqual(tools.fulcra_data_catalog({}), raw)
 
 
 if __name__ == "__main__":
