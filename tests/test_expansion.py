@@ -166,7 +166,7 @@ class ExpansionTests(unittest.TestCase):
 
     def test_records_use_private_jsonl_and_cleanup_even_on_failure(self):
         for name, field, rows, command in (
-            ("fulcra_record", "record", {"value": -2, "note": "--help; safe"}, "record"),
+            ("fulcra_record", "record", {"value": -2, "note": "--help; literal\u0000"}, "record"),
             ("fulcra_record", "records", [{"value": 1}, {"value": 2}], "record"),
             ("fulcra_delete_records", "record", {"record_id": ID}, "delete"),
             ("fulcra_delete_records", "records", [{"record_id": ID}, {"record_id": ID}], "delete"),
@@ -193,7 +193,7 @@ class ExpansionTests(unittest.TestCase):
         self.assertEqual(argv, ["delete", DT, ID, "--api-version", "v1alpha1"])
         self.reject("fulcra_record", [
             {"data_type": DT}, {"data_type": DT, "record": {}, "records": [{}]},
-            {"data_type": DT, "records": []}, {"data_type": DT, "record": {"note": "bad\u0000"}},
+            {"data_type": DT, "records": []},
             {"data_type": DT, "record": {"value": float("nan")}},
         ])
         self.reject("fulcra_delete_records", [
@@ -229,12 +229,14 @@ class ExpansionTests(unittest.TestCase):
         self.assertEqual(argv, ["data-type", "create", "NumericAnnotation", "Energy", "--description", "Daily energy",
                                 "--tag", "daily", "--tag", "self", "--kind", "discrete", "--value", "2.5", "--unit", "points"])
         self.reject("fulcra_create_data_type", [
-            {"base_type": "ScaleAnnotation", "name": "Mood", "scale_labels": ["bad"]},
-            {"base_type": "MomentAnnotation", "name": "Event", "unit": "points"},
             {"base_type": "NumericAnnotation", "name": "--help"},
-            {"base_type": "BooleanAnnotation", "name": "Done", "default_value": "maybe"},
             {"base_type": "NumericAnnotation", "name": "N", "default_value": "nan"},
+            {"base_type": "NumericAnnotation", "name": "N", "add_to_timeline": True},
         ])
+        with patch.object(self.tools, "_run_cli", side_effect=RuntimeError("CLI rejected invalid scale labels")) as run:
+            result = self.tools.fulcra_create_data_type({"base_type": "ScaleAnnotation", "name": "Mood", "scale_labels": ["bad"]})
+        self.assertIn("CLI rejected", result)
+        run.assert_called_once()
 
     def test_schema_and_lifecycle_preserve_exact_identifiers(self):
         result, argv = self.invoke("fulcra_data_type_schema", {"data_type": DT, "api_version": "v1alpha1", "user_id": ID}, '{"type":"object"}')

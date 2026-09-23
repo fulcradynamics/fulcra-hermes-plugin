@@ -61,9 +61,11 @@ See [Hermes Python dependencies](https://hermes-agent.nousresearch.com/docs/deve
 The adapter uses argument arrays without a shell, closes stdin, and captures
 stdout and stderr separately. Ordinary calls time out after 180 seconds.
 Authentication completion allows 1080 seconds, including a 900-second polling
-window. JSON Lines are parsed as complete JSON arrays; list output is bounded and
-can be exported to a new local file. See [tool surface](tool-surface.md) for exact
-limits, time formats, validation and all CLI mappings.
+window. JSON Lines are parsed as complete JSON arrays. Lists default to 200 items
+(maximum 2000); model output is capped at 24000 characters. Read tools can export
+complete JSON to a new local file. File previews read at most 12000 bytes.
+These output limits do not limit the CLI's server fetch. Data-type creation does
+not expose the CLI's optional timeline-preference update.
 
 Settings and the credential-scrubbed child environment are resolved at call time
 through Hermes's profile-aware helpers. Older Hermes versions without

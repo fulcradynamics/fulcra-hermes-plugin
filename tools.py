@@ -136,8 +136,10 @@ def _bounded(value, args):
         return json.dumps({"output_path": str(target), "bytes": target.stat().st_size, "truncated": False})
     if isinstance(value, list):
         items = []
+        size = 2  # JSON array brackets.
         for item in value[:args.get("limit", 200)]:
-            if len(json.dumps(items + [item])) > MAX_OUTPUT - 500:
+            size += len(json.dumps(item)) + (2 if items else 0)
+            if size > MAX_OUTPUT - 500:
                 break
             items.append(item)
         if len(items) != len(value):
@@ -254,34 +256,17 @@ def fulcra_data_catalog(args):
 @_tool("fulcra_create_data_type", "Create a user-defined annotation type, not records. Discover base types with fulcra_data_catalog, then inspect fulcra_data_type_schema and use fulcra_record. ScaleAnnotation requires five labels; metric options apply only to metrics.", {
     "base_type": _enum(*BASE_TYPES), "name": STRING, "description": STRING,
     "tags": _array(), "metric_kind": _enum("cumulative", "discrete"),
-    "default_value": STRING, "unit": STRING, "scale_labels": _array(),
-    "add_to_timeline": BOOLEAN}, ("base_type", "name"))
+    "default_value": STRING, "unit": STRING, "scale_labels": _array()}, ("base_type", "name"))
 def fulcra_create_data_type(args):
     base = args["base_type"]
-    if base in ("MomentAnnotation", "DurationAnnotation") and any(k in args for k in ("metric_kind", "default_value", "unit")):
-        raise ValueError("Metric options require a metric base type in CLI 0.1.42.")
-    if "unit" in args and base != "NumericAnnotation":
-        raise ValueError("unit is supported only for NumericAnnotation.")
-    labels = args.get("scale_labels", [])
-    if (base == "ScaleAnnotation" and len(labels) != 5) or (base != "ScaleAnnotation" and labels):
-        raise ValueError("Exactly five scale_labels are required only for ScaleAnnotation.")
-    if "default_value" in args:
-        value = args["default_value"]
-        if base == "NumericAnnotation":
-            try:
-                valid = math.isfinite(float(value))
-            except ValueError:
-                valid = False
-            if not valid:
-                raise ValueError("default_value must be a finite number.")
-        elif base == "BooleanAnnotation":
-            if value.lower() not in ("true", "false", "1", "0", "yes", "no", "on", "off", "t", "f", "y", "n"):
-                raise ValueError("Boolean default_value must be true or false.")
-        else:
-            raise ValueError("default_value is supported only for numeric or boolean annotations.")
+    # The CLI validates units, labels and defaults; these two gaps need guarding.
+    if "default_value" in args and base == "ScaleAnnotation":
+        raise ValueError("The CLI ignores default_value for ScaleAnnotation; omit it.")
+    if "default_value" in args and base == "NumericAnnotation" and not math.isfinite(float(args["default_value"])):
+        raise ValueError("default_value must be a finite number.")
     command = ["data-type", "create", base, args["name"]] + _options(args, {
         "description": "--description", "tags": "--tag", "metric_kind": "--kind",
-        "default_value": "--value", "unit": "--unit", "scale_labels": "--scale-label", "add_to_timeline": "--add-to-timeline"})
+        "default_value": "--value", "unit": "--unit", "scale_labels": "--scale-label"})
     return _bounded(_json_output(_run_cli(command)), args)
 
 
@@ -327,28 +312,7 @@ def _times(args, *, latest=False):
     return values
 
 
-def _structured(value):
-    """Validate arbitrary JSON record content without turning fields into options."""
-    if isinstance(value, str):
-        if "\x00" in value:
-            raise ValueError("Record content must contain no NUL.")
-    elif isinstance(value, dict):
-        for key, item in value.items():
-            if not isinstance(key, str):
-                raise ValueError("Record keys must be strings.")
-            _structured(key)
-            _structured(item)
-    elif isinstance(value, list):
-        for item in value:
-            _structured(item)
-    elif value is not None and type(value) not in (int, float, bool):
-        raise ValueError("Record content must be JSON.")
-    elif isinstance(value, float) and not math.isfinite(value):
-        raise ValueError("Record numbers must be finite.")
-
-
 def _record_file(command, rows):
-    _structured(rows)
     payload = "\n".join(json.dumps(row, allow_nan=False) for row in rows)
     if len(payload.encode("utf-8")) > 4 * 1024 * 1024:
         raise ValueError("Batch exceeds 4 MiB; split it into smaller requests.")
