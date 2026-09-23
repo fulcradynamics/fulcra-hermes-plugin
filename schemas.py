@@ -15,7 +15,7 @@ AUTH_SUBMIT_CODE = {
         "properties": {
             "device_code": {
                 "type": "string",
-                "description": "The device code returned by the get_auth_url tool"
+                "description": "The device code returned by the fulcra_auth tool"
             }
         },
         "required": ["device_code"]

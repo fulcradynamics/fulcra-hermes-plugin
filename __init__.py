@@ -9,14 +9,14 @@ def register(ctx):
     
     # Register Authentication Tools
     ctx.register_tool(
-        name="get_auth_url",
+        name="fulcra_auth",
         toolset="context",
         schema=schemas.AUTH_GET_URL,
         handler=tools.fulcra_get_auth_url,
     )
 
     ctx.register_tool(
-        name="submit_device_code",
+        name="fulcra_auth_device",
         toolset="context",
         schema=schemas.AUTH_SUBMIT_CODE,
         handler=tools.fulcra_submit_device_code,
@@ -24,7 +24,7 @@ def register(ctx):
 
     # Register Catalog Tool
     ctx.register_tool(
-        name="get_data_catalog",
+        name="fulcra_data_catalog",
         toolset="context",
         schema=schemas.GET_CATALOG,
         handler=tools.fulcra_get_data_catalog,

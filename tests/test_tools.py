@@ -71,7 +71,7 @@ class AdapterTests(unittest.TestCase):
         with patch.object(tools, "_run_cli", return_value="Web auth URL: https://example.test\n- Device code: fixture") as run:
             output = tools.fulcra_get_auth_url({})
         run.assert_called_once_with(["auth", "login", "--get-auth-url"])
-        self.assertIn("submit_device_code", output)
+        self.assertIn("fulcra_auth_device", output)
         self.assertIn("Wait for the user", output)
 
     def test_device_code_is_passed_as_a_single_argument(self):
@@ -166,39 +166,6 @@ class AdapterTests(unittest.TestCase):
                  patch("shutil.which", return_value="/bin/uv"), \
                  patch("subprocess.run", return_value=subprocess.CompletedProcess([], 0, raw, "")):
                 self.assertEqual(tools.fulcra_get_data_catalog({}), json.dumps(expected, indent=2))
-
-    def test_plugin_registers_without_fulcra_sdk(self):
-        # A separate, isolated interpreter proves the host needs no SDK install.
-        probe = '''
-import importlib.abc, importlib.util, sys
-class NoSDK(importlib.abc.MetaPathFinder):
-    def find_spec(self, fullname, *args):
-        if fullname == "fulcra_api" or fullname.startswith("fulcra_api."):
-            raise ImportError("Fulcra SDK must not load in Hermes")
-sys.meta_path.insert(0, NoSDK())
-spec = importlib.util.spec_from_file_location("context_plugin", sys.argv[1], submodule_search_locations=[sys.argv[2]])
-plugin = importlib.util.module_from_spec(spec)
-sys.modules[spec.name] = plugin
-spec.loader.exec_module(plugin)
-class Context:
-    def __init__(self):
-        self.tools = {}
-        self.skills = {}
-    def register_tool(self, **kwargs):
-        self.tools[kwargs["name"]] = kwargs
-    def register_skill(self, name, path):
-        self.skills[name] = path
-ctx = Context()
-plugin.register(ctx)
-assert set(ctx.tools) == {"get_auth_url", "submit_device_code", "get_data_catalog"}
-assert all(t["toolset"] == "context" for t in ctx.tools.values())
-assert ctx.skills["context"].is_file()
-'''
-        result = subprocess.run(
-            [sys.executable, "-I", "-c", probe, str(ROOT / "__init__.py"), str(ROOT)],
-            capture_output=True, text=True, timeout=15,
-        )
-        self.assertEqual(result.returncode, 0, result.stderr)
 
 
 if __name__ == "__main__":

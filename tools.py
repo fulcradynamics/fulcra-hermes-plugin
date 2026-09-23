@@ -66,7 +66,7 @@ def fulcra_get_auth_url(args, **kwargs):
         output = _run_cli(["auth", "login", "--get-auth-url"])
         return output + (
             "\n\nWait for the user to complete browser authorization, then call "
-            "submit_device_code with the returned device code. Use the tool rather "
+            "fulcra_auth_device with the returned device code. Use the tool rather "
             "than running the printed CLI command."
         )
     except Exception as exc:
@@ -78,7 +78,7 @@ def fulcra_submit_device_code(args, **kwargs):
     device_code = args.get("device_code")
     if (not isinstance(device_code, str) or not device_code.strip()
             or "\x00" in device_code or device_code.startswith("-")):
-        return "Error: device_code must be a nonempty device code returned by get_auth_url."
+        return "Error: device_code must be a nonempty device code returned by fulcra_auth."
     try:
         return _run_cli(
             ["auth", "login", "--device-code", device_code,
@@ -106,5 +106,5 @@ def fulcra_get_data_catalog(args, **kwargs):
     except Exception as exc:
         return (
             f"Error retrieving catalog: {exc}\n\n"
-            "If this is an authentication error, please run the get_auth_url tool."
+            "If this is an authentication error, please run the fulcra_auth tool."
         )
