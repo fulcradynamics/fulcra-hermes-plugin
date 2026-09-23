@@ -33,6 +33,42 @@ class AdapterTests(unittest.TestCase):
         modules.start()
         self.addCleanup(modules.stop)
 
+    def test_empty_read_streams_and_silent_mutation_are_successful(self):
+        tools = load_tools()
+        with patch.object(tools, "_runtime_context", return_value=(True, {"PATH": "/bin"})), \
+             patch("shutil.which", return_value="/bin/uv"), \
+             patch("subprocess.run", return_value=subprocess.CompletedProcess([], 0, "", "")):
+            for argv in (["catalog", "--name", "none"], ["get-records", "HeartRate", "1 day"],
+                         ["share", "list-incoming"], ["file", "list", "/"], ["file", "delete", "/fixture"]):
+                with self.subTest(argv=argv):
+                    self.assertEqual(tools._run_cli(argv), "")
+            self.assertIn("empty response", tools.fulcra_get_auth_url({}))
+
+    def test_raw_cli_diagnostics_never_expose_credentials(self):
+        tools = load_tools()
+        for diagnostic in ('Authorization: Bearer secret-token', '{"refresh_token":"secret-refresh"}',
+                           'https://example.test?token=secret-query', 'No credentials found secret-extra',
+                           'HTTP Error 403 secret-denied'):
+            with self.subTest(diagnostic=diagnostic), \
+                 patch.object(tools, "_runtime_context", return_value=(True, {"PATH": "/bin"})), \
+                 patch("shutil.which", return_value="/bin/uv"), \
+                 patch("subprocess.run", return_value=subprocess.CompletedProcess([], 1, "", diagnostic)):
+                result = tools.fulcra_get_data_catalog({})
+            self.assertNotIn("secret-", result)
+            self.assertIn("Error", result)
+            self.assertLess(len(result), 1000)
+
+    def test_catalog_filters_and_bounded_json(self):
+        tools = load_tools()
+        with patch.object(tools, "_run_cli", return_value='{"id":"one"}\n{"id":"two"}') as run:
+            result = json.loads(tools.fulcra_get_data_catalog({"name": "Mood", "recordable_only": True, "limit": 1}))
+        self.assertEqual(run.call_args.args[0], ["catalog", "--name", "Mood", "--recordable-only"])
+        self.assertEqual(result, {"items": [{"id": "one"}], "returned": 1, "available": 2, "truncated": True})
+        for args in ({"unknown": True}, {"data_type": "--help"}, {"name": "bad\u0000"}, {"limit": True}):
+            with self.subTest(args=args), patch.object(tools, "_run_cli") as run:
+                self.assertTrue(tools.fulcra_get_data_catalog(args).startswith("Error"))
+                run.assert_not_called()
+
     def test_catalog_runs_pinned_cli_in_isolation(self):
         tools = load_tools()
         result = subprocess.CompletedProcess([], 0, '[{"id":"fixture"}]\n', '')
