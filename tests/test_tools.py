@@ -35,7 +35,7 @@ class AdapterTests(unittest.TestCase):
 
     def test_auth_unexpected_errors_are_safe_and_success_output_is_bounded(self):
         tools = load_tools()
-        for handler, args in ((tools.fulcra_get_auth_url, {}), (tools.fulcra_submit_device_code, {"device_code": "fixture"})):
+        for handler, args in ((tools.fulcra_auth, {}), (tools.fulcra_auth_device, {"device_code": "fixture"})):
             with patch.object(tools, "_run_cli", side_effect=OSError("private-secret")):
                 result = handler(args)
             self.assertNotIn("private-secret", result)
@@ -53,7 +53,7 @@ class AdapterTests(unittest.TestCase):
                          ["share", "list-incoming"], ["file", "list", "/"], ["file", "delete", "/fixture"]):
                 with self.subTest(argv=argv):
                     self.assertEqual(tools._run_cli(argv), "")
-            self.assertIn("empty response", tools.fulcra_get_auth_url({}))
+            self.assertIn("empty response", tools.fulcra_auth({}))
 
     def test_raw_cli_diagnostics_never_expose_credentials(self):
         tools = load_tools()
@@ -64,7 +64,7 @@ class AdapterTests(unittest.TestCase):
                  patch.object(tools, "_runtime_context", return_value=(True, {"PATH": "/bin"})), \
                  patch("shutil.which", return_value="/bin/uv"), \
                  patch("subprocess.run", return_value=subprocess.CompletedProcess([], 1, "", diagnostic)):
-                result = tools.fulcra_get_data_catalog({})
+                result = tools.fulcra_data_catalog({})
             self.assertNotIn("secret-", result)
             self.assertIn("Error", result)
             self.assertLess(len(result), 1000)
@@ -72,12 +72,12 @@ class AdapterTests(unittest.TestCase):
     def test_catalog_filters_and_bounded_json(self):
         tools = load_tools()
         with patch.object(tools, "_run_cli", return_value='{"id":"one"}\n{"id":"two"}') as run:
-            result = json.loads(tools.fulcra_get_data_catalog({"name": "Mood", "recordable_only": True, "limit": 1}))
+            result = json.loads(tools.fulcra_data_catalog({"name": "Mood", "recordable_only": True, "limit": 1}))
         self.assertEqual(run.call_args.args[0], ["catalog", "--name", "Mood", "--recordable-only"])
         self.assertEqual(result, {"items": [{"id": "one"}], "returned": 1, "available": 2, "truncated": True})
         for args in ({"unknown": True}, {"data_type": "--help"}, {"name": "bad\u0000"}, {"limit": True}):
             with self.subTest(args=args), patch.object(tools, "_run_cli") as run:
-                self.assertTrue(tools.fulcra_get_data_catalog(args).startswith("Error"))
+                self.assertTrue(tools.fulcra_data_catalog(args).startswith("Error"))
                 run.assert_not_called()
 
     def test_catalog_runs_pinned_cli_in_isolation(self):
@@ -86,7 +86,7 @@ class AdapterTests(unittest.TestCase):
         with patch.object(tools, "_runtime_context", create=True, return_value=(True, {"PATH": "/bin"})), \
              patch("shutil.which", return_value="/bin/uv") as which, \
              patch("subprocess.run", return_value=result) as run:
-            self.assertEqual(json.loads(tools.fulcra_get_data_catalog({})), json.loads(result.stdout))
+            self.assertEqual(json.loads(tools.fulcra_data_catalog({})), json.loads(result.stdout))
         which.assert_called_once_with("uv", path=os.pathsep.join(("/bin", str(self.managed_bin))))
         command = run.call_args.args[0]
         self.assertEqual(command, ["/bin/uv", "tool", "run", "--isolated", "--no-config", "--from", "fulcra-api==0.1.42", "fulcra-api", "catalog"])
@@ -116,7 +116,7 @@ class AdapterTests(unittest.TestCase):
     def test_authentication_uses_noninteractive_cli(self):
         tools = load_tools()
         with patch.object(tools, "_run_cli", return_value="Web auth URL: https://example.test\n- Device code: fixture") as run:
-            output = tools.fulcra_get_auth_url({})
+            output = tools.fulcra_auth({})
         run.assert_called_once_with(["auth", "login", "--get-auth-url"])
         self.assertIn("fulcra_auth_device", output)
         self.assertIn("Wait for the user", output)
@@ -125,7 +125,7 @@ class AdapterTests(unittest.TestCase):
         tools = load_tools()
         device_code = "fixture; not-a-shell-command"
         with patch.object(tools, "_run_cli", return_value="Authorization successful!") as run:
-            output = tools.fulcra_submit_device_code({"device_code": device_code})
+            output = tools.fulcra_auth_device({"device_code": device_code})
         run.assert_called_once_with(
             ["auth", "login", "--device-code", device_code, "--poll-timeout", "900", "--poll-interval", "5"],
             timeout=1080,
@@ -136,7 +136,7 @@ class AdapterTests(unittest.TestCase):
         tools = load_tools()
         for value in (None, "", "   ", 5, [], "bad\x00code", "--help"):
             with self.subTest(value=value), patch.object(tools, "_run_cli") as run:
-                self.assertTrue(tools.fulcra_submit_device_code({"device_code": value}).startswith("Error:"))
+                self.assertTrue(tools.fulcra_auth_device({"device_code": value}).startswith("Error:"))
                 run.assert_not_called()
 
     def test_uv_environment_isolation(self):
@@ -160,14 +160,14 @@ class AdapterTests(unittest.TestCase):
         tools = load_tools()
         with patch.object(tools, "_runtime_context", return_value=(True, {})), \
              patch("shutil.which", return_value=None), patch("subprocess.run") as run:
-            result = tools.fulcra_get_data_catalog({})
+            result = tools.fulcra_data_catalog({})
         self.assertIn("Install uv", result)
         run.assert_not_called()
 
     def test_lazy_install_opt_out_never_launches_uv(self):
         tools = load_tools()
         with patch.object(tools, "_runtime_context", return_value=(False, {})), patch("subprocess.run") as run:
-            self.assertIn("allow_lazy_installs", tools.fulcra_get_auth_url({}))
+            self.assertIn("allow_lazy_installs", tools.fulcra_auth({}))
         run.assert_not_called()
 
     def test_timeout_does_not_leak_command_or_partial_output(self):
@@ -175,7 +175,7 @@ class AdapterTests(unittest.TestCase):
         error = subprocess.TimeoutExpired(["uv", "sensitive-command"], 1, output="sensitive-output")
         with patch.object(tools, "_runtime_context", return_value=(True, {"PATH": "/bin"})), \
              patch("shutil.which", return_value="/bin/uv"), patch("subprocess.run", side_effect=error):
-            output = tools.fulcra_get_data_catalog({})
+            output = tools.fulcra_data_catalog({})
         self.assertIn("timed out", output)
         self.assertNotIn("sensitive", output)
 
@@ -184,7 +184,7 @@ class AdapterTests(unittest.TestCase):
         result = subprocess.CompletedProcess([], 1, "", "fixture-device " + "x" * 5000)
         with patch.object(tools, "_runtime_context", return_value=(True, {"PATH": "/bin"})), \
              patch("shutil.which", return_value="/bin/uv"), patch("subprocess.run", return_value=result):
-            output = tools.fulcra_submit_device_code({"device_code": "fixture-device"})
+            output = tools.fulcra_auth_device({"device_code": "fixture-device"})
         self.assertIn("[redacted]", output)
         self.assertLess(len(output), 2500)
         self.assertNotIn("fixture-device", output)
@@ -194,12 +194,12 @@ class AdapterTests(unittest.TestCase):
         with patch.object(tools, "_runtime_context", return_value=(True, {"PATH": "/bin"})), \
              patch("shutil.which", return_value="/bin/uv"), \
              patch("subprocess.run", return_value=subprocess.CompletedProcess([], 0, "", "")):
-            self.assertIn("empty response", tools.fulcra_get_auth_url({}))
+            self.assertIn("empty response", tools.fulcra_auth({}))
 
     def test_catalog_rejects_non_json_output(self):
         tools = load_tools()
         with patch.object(tools, "_run_cli", return_value="not json"):
-            self.assertTrue(tools.fulcra_get_data_catalog({}).startswith("Error"))
+            self.assertTrue(tools.fulcra_data_catalog({}).startswith("Error"))
 
     def test_catalog_normalizes_json_lines_and_empty_catalog(self):
         tools = load_tools()
@@ -212,7 +212,7 @@ class AdapterTests(unittest.TestCase):
                  patch.object(tools, "_runtime_context", return_value=(True, {"PATH": "/bin"})), \
                  patch("shutil.which", return_value="/bin/uv"), \
                  patch("subprocess.run", return_value=subprocess.CompletedProcess([], 0, raw, "")):
-                self.assertEqual(tools.fulcra_get_data_catalog({}), json.dumps(expected, indent=2))
+                self.assertEqual(tools.fulcra_data_catalog({}), json.dumps(expected, indent=2))
 
 
 if __name__ == "__main__":

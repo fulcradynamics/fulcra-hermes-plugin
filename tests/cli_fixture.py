@@ -90,7 +90,7 @@ def check(name, args):
 
 tools._run_cli = boundary
 with patch.object(socket.socket, "connect", side_effect=AssertionError("Network forbidden in CLI fixture")):
-    check("fulcra_get_data_catalog", {"data_type": DT, "name": "fixture", "base_types_only": True, "recordable_only": True, "queryable_only": True, "category": "base_type", "api_version": "v1alpha1", "user_id": ID})
+    check("fulcra_data_catalog", {"data_type": DT, "name": "fixture", "base_types_only": True, "recordable_only": True, "queryable_only": True, "category": "base_type", "api_version": "v1alpha1", "user_id": ID})
     check("fulcra_create_data_type", {"base_type": "NumericAnnotation", "name": "Fixture", "description": "test", "tags": ["fixture"], "metric_kind": "discrete", "default_value": "-2.5", "unit": "points"})
     check("fulcra_create_data_type", {"base_type": "ScaleAnnotation", "name": "Scale", "scale_labels": ["1", "2", "3", "4", "5"]})
     check("fulcra_data_type_schema", {"data_type": DT, "api_version": "v1alpha1", "user_id": ID})

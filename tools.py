@@ -116,8 +116,13 @@ def _json_output(raw, *, rows=False):
             parsed = json.loads(raw) if raw.startswith("[") else [json.loads(line) for line in raw.splitlines() if line.strip()]
             if not isinstance(parsed, list) or any(not isinstance(row, dict) for row in parsed):
                 raise ValueError()
-            return parsed
-        return json.loads(raw)
+        else:
+            parsed = json.loads(raw)
+            if not isinstance(parsed, dict):
+                raise ValueError()
+        # Python's JSON decoder permits NaN/Infinity and overflow; model JSON must not.
+        json.dumps(parsed, allow_nan=False)
+        return parsed
     except ValueError:
         raise RuntimeError("Fulcra CLI returned invalid JSON; retry or report the CLI incompatibility.") from None
 
@@ -211,7 +216,7 @@ def _run_cli(arguments, *, timeout=180):
 
 
 @_tool("fulcra_auth", "Start noninteractive browser authentication; return an auth URL and device code. Wait for browser approval before fulcra_auth_device. Does not reset existing credentials.", {})
-def fulcra_get_auth_url(args):
+def fulcra_auth(args):
     """Start the noninteractive device flow; never open a browser on the host."""
     output = _run_cli(["auth", "login", "--get-auth-url"])
     if len(output) > MAX_OUTPUT - 300:
@@ -224,7 +229,7 @@ def fulcra_get_auth_url(args):
 
 
 @_tool("fulcra_auth_device", "Finish authentication only after browser approval using the device_code from fulcra_auth. CLI persists credentials in OS-user storage, shared by Hermes profiles.", {"device_code": STRING}, ("device_code",))
-def fulcra_submit_device_code(args):
+def fulcra_auth_device(args):
     """Finish the device flow and let the CLI persist its own credentials."""
     output = _run_cli(
         ["auth", "login", "--device-code", args["device_code"],
@@ -238,7 +243,7 @@ def fulcra_submit_device_code(args):
     "data_type": DATA_TYPE, "name": STRING, "base_types_only": BOOLEAN,
     "recordable_only": BOOLEAN, "queryable_only": BOOLEAN, "category": STRING,
     "api_version": STRING, "user_id": UUID, **OUTPUT})
-def fulcra_get_data_catalog(args):
+def fulcra_data_catalog(args):
     command = ["catalog"] + _options(args, {
         "data_type": "--data-type", "name": "--name", "base_types_only": "--base-types-only",
         "recordable_only": "--recordable-only", "queryable_only": "--queryable-only",

@@ -27,6 +27,12 @@ class ExpansionTests(unittest.TestCase):
                 self.assertTrue(result.startswith("Error"), result)
                 run.assert_not_called()
 
+    def test_invalid_cli_json_is_not_returned_as_valid_data(self):
+        for raw in ('{"value":NaN}', '{"value":Infinity}', '[1,2]', 'not json', ''):
+            with self.subTest(raw=raw), patch.object(self.tools, "_run_cli", return_value=raw):
+                result = self.tools.fulcra_data_type_schema({"data_type": DT})
+                self.assertTrue(result.startswith("Error"), result)
+
     def test_large_reads_export_complete_json_without_overwriting(self):
         rows = [{"value": i, "note": "x" * 1000} for i in range(40)]
         with tempfile.TemporaryDirectory() as directory:
@@ -47,8 +53,8 @@ class ExpansionTests(unittest.TestCase):
         self.assertLess(len(result), 24000)
 
     def test_auth_rejects_unknown_arguments_before_cli(self):
-        self.reject("fulcra_get_auth_url", [{"reset": True}, None])
-        self.reject("fulcra_submit_device_code", [{"device_code": "fixture", "extra": "x"}])
+        self.reject("fulcra_auth", [{"reset": True}, None])
+        self.reject("fulcra_auth_device", [{"device_code": "fixture", "extra": "x"}])
 
     def test_negative_default_is_literal_and_remote_paths_are_not_repaired(self):
         _, argv = self.invoke("fulcra_create_data_type", {"base_type": "NumericAnnotation", "name": "Temperature", "default_value": "-2.5"})
