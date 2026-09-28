@@ -168,8 +168,8 @@ commands across CLI and gateways; `register_cli_command` supplies `hermes fulcra
 | --- | --- |
 | Native settings form | Canonical, discoverable, all declared settings, shared writer |
 | `/fulcra setup` and `hermes fulcra setup` | Explicit noninteractive frontends sharing validation and readback; useful without Desktop |
-| Install/setup callback | No general callback found in the authoritative plugin API; current `hermes plugins --help` has no config/setup command. Do not invent one or perform setup during registration |
-| First-session options offer | Retained because native settings are not proactively presented; lists independent choices and entrypoints without a forced questionnaire |
+| Install-time introduction | Root `after-install.md` is rendered by the Hermes installer. It describes Fulcra and opt-in choices without executing setup or changing the discovery marker; no callback or registration-time setup needed |
+| First-session options offer | Retained as a fallback when setup has not been handled; displaying install-time information alone does not consume it. Existing eligibility and suppression rules are unchanged |
 | New setup model tool | Unnecessary permanent tool-schema cost; existing update configuration tool retained for compatibility |
 
 Nothing runs at import/registration except registration itself. No Hermes core
