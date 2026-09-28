@@ -19,6 +19,10 @@ hermes plugins install fulcradynamics/fulcra-hermes-plugin --no-enable
 hermes plugins enable context
 ```
 
+Hermes displays [after-install.md](after-install.md) after installation with an
+introduction to Fulcra and independent feature setup choices. It does not configure
+features or consume the existing first-session setup reminder.
+
 Start a fresh Hermes session. For Discord or other messaging platforms, restart
 the gateway to load the plugin.
 
