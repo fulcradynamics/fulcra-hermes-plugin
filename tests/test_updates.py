@@ -54,6 +54,11 @@ class Context:
     def register_hook(self, name, callback):
         self.hooks[name] = callback
 
+    def register_middleware(self, name, callback):
+        if not hasattr(self, 'middleware'):
+            self.middleware = {}
+        self.middleware[name] = callback
+
     def register_tool(self, name, handler, **kwargs):
         self.tools[name] = handler
 

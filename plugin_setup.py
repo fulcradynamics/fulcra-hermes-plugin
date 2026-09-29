@@ -4,7 +4,7 @@ import json
 import re
 import shlex
 
-from . import mesh_updates, updates, workspace
+from . import mesh_updates, redaction, updates, workspace
 
 SETTINGS = {**workspace.SETTINGS, **updates.SETTINGS, **mesh_updates.SETTINGS}
 FLAGS = {
@@ -22,6 +22,8 @@ HINT = ('Briefly offer these Fulcra setup options: workspace context.md loading;
         'Preserve all prior explicit choices; never auto-enable a feature. '
         'No feature was enabled or configuration changed for this offer. All choices are explicit, '
         'profile-wide and appropriate only for trusted chats sharing the OS Fulcra login. '
+        'Separately, optional local session literal redaction is explained by /fulcra redact help; '
+        'it is not blanket DLP and does not upload phrase lists. '
         'Do not launch a questionnaire or block the current task.')
 
 
@@ -63,6 +65,18 @@ class Setup:
 
     def command(self, raw_args=''):
         """Handle explicit slash setup without prompts or host exits."""
+        action = raw_args.strip().split(maxsplit=1)[0] if raw_args.strip() else ''
+        if action in ('redact', 'unredact', 'raw'):
+            if action == 'raw':
+                return 'Error: /fulcra raw is not supported. Use /fulcra redact off or on explicitly.'
+            try:
+                session_id = ''
+                if not raw_args.rstrip().endswith(' --profile'):
+                    from gateway.session_context import get_session_env
+                    session_id = get_session_env('HERMES_SESSION_ID')
+                return redaction.Redaction(self.ctx).command(raw_args, session_id=session_id)
+            except Exception:
+                return redaction.ERROR
         # argparse's default help/error paths exit the host, including gateways.
         parser = Parser(prog='/fulcra', add_help=False, allow_abbrev=False)
         arguments(parser)
@@ -134,15 +148,17 @@ class Setup:
                   'Choose --workspace on/off --updates on/off --interval 900 --mesh-messages on/off',
                   '       --mesh-invites on/off --mesh-agent NAME. Omitted choices are preserved.',
                   'Checks are turn-triggered; notices arrive on a later turn, never while idle.',
-                  'No automatic accept/share/reply/send. Workspace loads on a new session first turn.']
+                  'No automatic accept/share/reply/send. Workspace loads on a new session first turn.',
+                  'Local literal redaction: /fulcra redact help (docs/redaction.md).']
         return '\n'.join(lines)
 
 
 def register(ctx):
     """Register setup frontends and discovery without persistent writes."""
     setup = Setup(ctx)
+    ctx.register_middleware('llm_execution', redaction.Redaction(ctx).execute)
     ctx.register_command('fulcra', setup.command, description='Fulcra setup, settings and status',
-                         args_hint='[setup|status|help] [options]')
+                         args_hint='[setup|status|help|redact|unredact] [options]')
     ctx.register_cli_command(name='fulcra', help='Fulcra setup and status',
                              setup_fn=setup.cli_setup, handler_fn=setup.cli)
     ctx.register_hook('pre_llm_call', setup.pre)

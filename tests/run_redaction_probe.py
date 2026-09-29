@@ -14,6 +14,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--python', required=True, help='Existing Hermes environment Python (not its bootstrap launcher)')
     parser.add_argument('--source', required=True, help='Matching Hermes source directory')
+    parser.add_argument('--doctor', action='store_true', help='Run hermes plugins doctor . --ci in the same offline isolation')
     args = parser.parse_args()
     with tempfile.TemporaryDirectory(prefix='plat480-', dir=os.environ['TMPDIR']) as directory:
         root = Path(directory)
@@ -27,6 +28,7 @@ def main():
             'TMPDIR': str(root), 'XDG_CONFIG_HOME': str(root / 'config'),
             'XDG_CACHE_HOME': str(root / 'cache'), 'PYTHONDONTWRITEBYTECODE': '1',
             'UV_OFFLINE': '1', 'HF_HUB_OFFLINE': '1', 'PLAT480_RECEIPT': str(receipt),
+            'PLAT480_DOCTOR': '1' if args.doctor else '',
         }
         probe = Path(__file__).with_name('redaction_hermes_probe.py').resolve()
         bootstrap = 'import sys, runpy; sys.path.insert(0, sys.argv[1]); runpy.run_path(sys.argv[2], run_name="__main__")'

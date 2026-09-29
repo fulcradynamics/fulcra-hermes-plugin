@@ -1,5 +1,16 @@
 # Fulcra setup (PLAT-470)
 
+## Optional local redaction (PLAT-480)
+
+Run `/fulcra redact help` for local literal redaction, separate from the settings
+below. Example: `/fulcra redact Leif Meyer = user name, Hermes`. Session scope is
+the default; append `--profile` only for shared profile rules. `/fulcra redact
+on|off` toggles outbound redaction and completed restoration together.
+`/fulcra unredact [--profile]` aliases `redact off`, permitting raw history on
+subsequent calls. No raw-message injection or config.yaml phrase lists are used.
+Read [redaction.md](redaction.md) for supported surfaces, fail-closed behavior,
+storage, and limits. This local feature does not require Fulcra authentication.
+
 ## Choose the active profile's features
 
 Install/enable the plugin and authenticate Fulcra separately. Configuration does

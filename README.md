@@ -80,6 +80,16 @@ isolate accounts.
 
 ## Initial setup
 
+Optional local literal redaction is available through
+`/fulcra redact Leif Meyer = user name, Hermes`. It defaults to session scope;
+append `--profile` for explicitly shared rules. `/fulcra redact on|off` controls
+outbound redaction and completed-text restoration together; `/fulcra unredact`
+aliases `redact off` and permits raw history on subsequent calls.
+Read [redaction scope and limits](docs/redaction.md) first: streams, tools, logs
+and auxiliary models are not blanket-protected, and unsupported payloads refuse
+locally. Key-only gateway commands must use explicit profile scope or a supported
+concrete-session surface. No Fulcra login is needed for this local feature.
+
 Use **Desktop → Capabilities → Plugins → Context**, `/fulcra setup` in chat, or
 `hermes fulcra setup` in a terminal. With no flags, setup shows grouped current
 values and choices, without enabling anything. `/fulcra status` reads them back.

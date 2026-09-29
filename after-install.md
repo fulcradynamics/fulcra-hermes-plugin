@@ -54,4 +54,11 @@ same OS account; profiles do not isolate Fulcra accounts.
 You can configure this later. The existing one-time first-session setup reminder
 remains available if you haven't handled setup yet.
 
+For optional local literal redaction, start with `/fulcra redact help`.
+`/fulcra redact Leif Meyer = user name, Hermes` adds session rules without a
+Fulcra upload. Streaming placeholders may remain visible; this is not blanket
+protection for tools, logs, transcripts or auxiliary models. See
+[redaction and limits](https://github.com/fulcradynamics/fulcra-hermes-plugin/blob/main/docs/redaction.md)
+before using `--profile` or turning protection off.
+
 [Setup details](https://github.com/fulcradynamics/fulcra-hermes-plugin/blob/main/docs/setup.md)
