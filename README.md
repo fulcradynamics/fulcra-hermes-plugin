@@ -81,10 +81,12 @@ isolate accounts.
 ## Initial setup
 
 Optional local literal redaction is available through
-`/fulcra redact Leif Meyer = user name, Hermes`. It defaults to session scope;
+`/fulcra redact add Leif Meyer = user name, Hermes`. It defaults to session scope;
 append `--profile` for explicitly shared rules. `/fulcra redact on|off` controls
-outbound redaction and completed-text restoration together; `/fulcra unredact`
-aliases `redact off` and permits raw history on subsequent calls.
+outbound redaction and completed-text restoration together. Use `redact remove`
+with exact original phrases, or `redact list` to display phrases and tokens without
+invoking the model. Listing in shared chat/history is not guaranteed private;
+removal or switching off may expose original history on subsequent calls.
 Read [redaction scope and limits](docs/redaction.md) first: streams, tools, logs
 and auxiliary models are not blanket-protected, and unsupported payloads refuse
 locally. Key-only gateway commands must use explicit profile scope or a supported

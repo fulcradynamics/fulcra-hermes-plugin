@@ -66,7 +66,7 @@ class Setup:
     def command(self, raw_args=''):
         """Handle explicit slash setup without prompts or host exits."""
         action = raw_args.strip().split(maxsplit=1)[0] if raw_args.strip() else ''
-        if action in ('redact', 'unredact'):
+        if action == 'redact':
             try:
                 session_id = ''
                 if not raw_args.rstrip().endswith(' --profile'):
@@ -87,7 +87,7 @@ class Setup:
                 return parser.format_help() + '\n' + self.status()
             return self.apply(args)
         except (ValueError, OSError) as exc:
-            return 'Error: ' + str(exc)
+            return 'Error: ' + str(exc) if action in ('setup', 'status', 'help', '') else 'Error: invalid choice.'
 
     def cli_setup(self, parser):
         """Register native CLI arguments using the shared schema."""
@@ -156,7 +156,7 @@ def register(ctx):
     setup = Setup(ctx)
     ctx.register_middleware('llm_execution', redaction.Redaction(ctx).execute)
     ctx.register_command('fulcra', setup.command, description='Fulcra setup, settings and status',
-                         args_hint='[setup|status|help|redact|unredact] [options]')
+                         args_hint='[setup|status|help|redact] [options]')
     ctx.register_cli_command(name='fulcra', help='Fulcra setup and status',
                              setup_fn=setup.cli_setup, handler_fn=setup.cli)
     ctx.register_hook('pre_llm_call', setup.pre)

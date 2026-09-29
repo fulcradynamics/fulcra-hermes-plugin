@@ -4,7 +4,7 @@ import os
 import sys
 import unittest
 from pathlib import Path
-from types import SimpleNamespace as NS
+from types import ModuleType, SimpleNamespace as NS
 
 
 def deny_network(event, args):
@@ -14,6 +14,12 @@ def deny_network(event, args):
 
 sys.addaudithook(deny_network)
 sys.dont_write_bytecode = True
+# CLI/gateway imports otherwise activate package provisioning even without main().
+# This harness already has its interpreter; only bootstrap is stubbed, not dispatch.
+sys.modules['hermes_bootstrap'] = ModuleType('hermes_bootstrap')
+def forbidden_connect(*args, **kwargs):
+    raise RuntimeError('Network forbidden in PLAT-480 probe')
+sys.modules['hermes_bootstrap']._happy_eyeballs_create_connection = forbidden_connect
 from hermes_cli.middleware import run_llm_execution_middleware
 from hermes_cli.plugins import PluginContext, get_plugin_manager
 from hermes_cli.plugins_manifest import PluginManifest
@@ -22,6 +28,7 @@ from gateway.session_context import set_session_vars, clear_session_vars
 from agent.transports import get_transport
 from agent.turn_truncation import normalize_response_for_agent
 from agent.turn_api_call import perform_api_call
+from hermes_state import SessionDB
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'tests'))
@@ -50,8 +57,116 @@ class RedactionContract(RedactionReviewContracts, unittest.TestCase):
         self.dispatch = run_llm_execution_middleware
         self.tokens = set_session_vars(session_id='session-A', source='cli')
         self.addCleanup(clear_session_vars, self.tokens)
-        self.assertIn('1 phrases', self.setup.command('redact synthetic-private-word'))
+        self.assertIn('1 phrases', self.setup.command('redact add synthetic-private-word'))
         self.request = {'messages': [{'role': 'user', 'content': 'synthetic-private-word'}]}
+
+    def test_cli_slash_list_is_display_only(self):
+        import cli
+        from unittest.mock import Mock, patch
+        from hermes_cli.plugins import get_plugin_command_handler
+        from run_agent import AIAgent
+        history = [{'role': 'user', 'content': 'existing history'}]
+        shell = object.__new__(cli.HermesCLI)
+        shell.config = {}
+        shell.session_id = 'session-A'
+        shell.conversation_history = history.copy()
+        shell.agent = NS(conversation_history=history.copy(), run_conversation=Mock(side_effect=AssertionError('model invoked')))
+        before = self.guard.load()
+        with patch.object(cli, '_ensure_skill_commands', return_value={}), \
+             patch.object(cli, 'get_skill_bundles', return_value={}), \
+             patch.object(cli, '_cprint') as display, \
+             patch.object(AIAgent, 'run_conversation', side_effect=AssertionError('model invoked')) as model, \
+             patch.object(SessionDB, 'append_message', side_effect=AssertionError('history append')) as append, \
+             patch.object(SessionDB, 'append_messages_batch', side_effect=AssertionError('history append')) as batch, \
+             patch.object(PluginContext, 'inject_message', side_effect=AssertionError('injection')) as inject:
+            self.assertTrue(shell.process_command('/fulcra redact list'))
+            text = str(display.call_args)
+            self.assertIn('synthetic-private-word', text)
+            self.assertIn('{REDACTED-1}', text)
+            model.assert_not_called()
+            append.assert_not_called()
+            batch.assert_not_called()
+            inject.assert_not_called()
+        self.assertEqual(shell.conversation_history, history)
+        self.assertEqual(shell.agent.conversation_history, history)
+        shell.agent.run_conversation.assert_not_called()
+        self.assertEqual(self.guard.load(), before)
+        self.assertIsNone(get_plugin_command_handler('redact'))
+        self.assertIsNone(get_plugin_command_handler('unredact'))
+        self.assertNotIn('synthetic-private-word', self.setup.command('unredact synthetic-private-word'))
+
+    def test_tui_command_dispatch_list_is_display_only(self):
+        from unittest.mock import patch
+        from tui_gateway import server
+        from run_agent import AIAgent
+        self.setup.command('redact add shared-private --profile')
+        clear_session_vars(self.tokens)
+        self.tokens = set_session_vars(session_id='', source='tui')
+        history = [{'role': 'user', 'content': 'existing history'}]
+        session = {'session_key': 'agent:tui:probe', 'cwd': '', 'profile_home': str(self.home),
+                   'history': history.copy(), 'agent': NS(session_id='session-A', conversation_history=history.copy())}
+        before = self.guard.load()
+        with patch.object(server, '_sessions', {'sid': session}), \
+             patch.object(AIAgent, 'run_conversation', side_effect=AssertionError('model invoked')) as model, \
+             patch.object(SessionDB, 'append_message', side_effect=AssertionError('history append')) as append, \
+             patch.object(SessionDB, 'append_messages_batch', side_effect=AssertionError('history append')) as batch, \
+             patch.object(PluginContext, 'inject_message', side_effect=AssertionError('injection')) as inject:
+            result = server._methods['command.dispatch']('list', {
+                'name': 'fulcra', 'arg': 'redact list --profile', 'session_id': 'sid'})['result']
+            self.assertEqual(set(result), {'type', 'output'})
+            self.assertEqual(result['type'], 'plugin')
+            self.assertIn('shared-private', result['output'])
+            self.assertNotIn('synthetic-private-word', result['output'])
+            result = server._methods['command.dispatch']('session-list', {
+                'name': 'fulcra', 'arg': 'redact list', 'session_id': 'sid'})['result']
+            self.assertIn('synthetic-private-word', result['output'])
+            self.assertIn('Inherited profile', result['output'])
+            self.assertIn('shared-private', result['output'])
+            slash = server._methods['slash.exec']('slash-list', {
+                'command': '/fulcra redact list', 'session_id': 'sid'})['result']
+            self.assertEqual(set(slash), {'output'})
+            self.assertIn('synthetic-private-word', slash['output'])
+            model.assert_not_called()
+            append.assert_not_called()
+            batch.assert_not_called()
+            inject.assert_not_called()
+        self.assertEqual(session['history'], history)
+        self.assertEqual(session['agent'].conversation_history, history)
+        self.assertEqual(self.guard.load(), before)
+
+    def test_gateway_list_route_is_display_only(self):
+        import asyncio
+        from unittest.mock import patch
+        from gateway.run import GatewayRunner
+        from gateway.config import GatewayConfig, Platform
+        from gateway.session import SessionSource
+        from gateway.platforms.event import MessageEvent
+        from run_agent import AIAgent
+        self.setup.command('redact add shared-private --profile')
+        runner = object.__new__(GatewayRunner)
+        runner.config = GatewayConfig()
+        runner._draining = False
+        source = SessionSource(platform=Platform.TELEGRAM, chat_id='probe', user_id='probe', chat_type='dm')
+        before = self.guard.load()
+        with patch.object(AIAgent, 'run_conversation', side_effect=AssertionError('model invoked')) as model, \
+             patch.object(SessionDB, 'append_message', side_effect=AssertionError('history append')) as append, \
+             patch.object(SessionDB, 'append_messages_batch', side_effect=AssertionError('history append')) as batch, \
+             patch.object(PluginContext, 'inject_message', side_effect=AssertionError('injection')) as inject:
+            for suffix in (' --profile', ''):
+                event = MessageEvent(text='/fulcra redact list' + suffix, source=source, message_id='probe')
+                handled, output, command = asyncio.run(runner._hm_dispatch_quick_and_plugin_commands(event, source, 'fulcra'))
+                self.assertTrue(handled)
+                self.assertEqual(command, 'fulcra')
+                if suffix:
+                    self.assertIn('shared-private', output)
+                    self.assertNotIn('synthetic-private-word', output)
+                else:
+                    self.assertIn('concrete session ID unavailable', output)
+            model.assert_not_called()
+            append.assert_not_called()
+            batch.assert_not_called()
+            inject.assert_not_called()
+        self.assertEqual(self.guard.load(), before)
 
     def parse(self, response, mode):
         transport = get_transport(mode)
@@ -94,7 +209,7 @@ class RedactionContract(RedactionReviewContracts, unittest.TestCase):
         self.assertEqual(emitted, ['{REDACTED-1}'])
         self.assertIn('synthetic-private-word', self.parse(result.response, 'chat_completions').content)
         self.assertEqual(self.request['messages'][0]['content'], 'synthetic-private-word')
-        self.assertIn('Redaction off', self.setup.command('unredact'))
+        self.assertIn('Redaction off', self.setup.command('redact off'))
         raw_response = NS(choices=[NS(message=NS(content='{REDACTED-1}', tool_calls=[]))])
         def raw_provider(request):
             self.assertEqual(request, self.request)
@@ -133,7 +248,7 @@ class RedactionContract(RedactionReviewContracts, unittest.TestCase):
     def test_profiles_sessions_and_key_only_command(self):
         clear_session_vars(self.tokens)
         self.tokens = set_session_vars(session_key='agent:main:telegram:123', source='telegram')
-        self.assertIn('concrete session ID unavailable', self.setup.command('redact another-private-word'))
+        self.assertIn('concrete session ID unavailable', self.setup.command('redact add another-private-word'))
         self.assertEqual(self.guard.rules('session-B')['entries'], [])
         self.assertEqual(len(self.guard.rules('session-A')['entries']), 1)
         def wire(text):
@@ -156,7 +271,7 @@ class RedactionContract(RedactionReviewContracts, unittest.TestCase):
             ctx_b = PluginContext(PluginManifest(name='redaction-probe', path=str(ROOT)), manager_b)
             plugin.plugin_setup.register(ctx_b)
             self.assertEqual(self.guard.rules('session-A')['entries'], [])
-            self.assertIn('1 phrases', self.setup.command('redact other-profile-private --profile'))
+            self.assertIn('1 phrases', self.setup.command('redact add other-profile-private --profile'))
             self.assertEqual(self.guard.rules('session-A')['entries'][0][0], 'other-profile-private')
             wire('other-profile-private')
         finally:

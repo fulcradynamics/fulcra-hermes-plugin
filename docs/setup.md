@@ -3,11 +3,14 @@
 ## Optional local redaction (PLAT-480)
 
 Run `/fulcra redact help` for local literal redaction, separate from the settings
-below. Example: `/fulcra redact Leif Meyer = user name, Hermes`. Session scope is
+below. Example: `/fulcra redact add Leif Meyer = user name, Hermes`. Session scope is
 the default; append `--profile` only for shared profile rules. `/fulcra redact
 on|off` toggles outbound redaction and completed restoration together.
-`/fulcra unredact [--profile]` aliases `redact off`, permitting raw history on
-subsequent calls. No raw-message injection or config.yaml phrase lists are used.
+Use `/fulcra redact remove PHRASE, PHRASE` for exact originals and
+`/fulcra redact list` for a read-only display of originals and tokens, without a
+model call. Listing in shared chat/history is not guaranteed private. Removing
+rules or switching off may expose original history on subsequent calls.
+No raw-message injection or config.yaml phrase lists are used.
 Read [redaction.md](redaction.md) for supported surfaces, fail-closed behavior,
 storage, and limits. This local feature does not require Fulcra authentication.
 

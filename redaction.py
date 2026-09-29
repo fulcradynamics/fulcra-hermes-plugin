@@ -1,13 +1,19 @@
 """Local literal rules and a fail-closed main-loop execution boundary."""
 import re
+import json
 from . import updates
 from .redaction_payload import redact_request, restore_response, refusal
 
 KEY = 'redaction.v1'
 ERROR = 'Error: invalid or conflicting redaction rules; no changes made.'
-HELP = ('/fulcra redact PHRASE [= alias], PHRASE [--profile]\n'
-        '/fulcra redact on|off|status [--profile]; /fulcra unredact [--profile]\n'
-        'Redact on/off toggles outbound redaction and completed restoration together; unredact aliases off. '
+HELP = ('/fulcra redact add PHRASE [= alias], PHRASE [--profile]\n'
+        '/fulcra redact remove PHRASE, PHRASE [--profile]\n'
+        '/fulcra redact list|on|off [--profile]\n'
+        'Session scope by default; --profile explicitly selects the active profile. '
+        'Redact on/off toggles outbound redaction and completed restoration together. '
+        'Remove exact originals only, atomically within the selected scope; retired tokens cannot be reused. '
+        'List displays original phrases and tokens in shared chat/history; not guaranteed private. '
+        'Removing rules may expose original historical text on the next call. '
         'Exact case-sensitive literals; commas and equals are separators (no quoting). '
         'Rules are local, not encrypted. Redaction off permits raw history to be sent. '
         'See docs/redaction.md for scope and limits.')
@@ -27,7 +33,12 @@ class Redaction:
             raise ValueError('Invalid state')
         if type(data['sessions']) is not dict or any(not isinstance(k, str) or not k for k in data['sessions']):
             raise ValueError('Invalid state')
-        phrases, tokens = set(), set()
+        reserved = data.get('reserved', [])  # Older local state has no retired tokens.
+        if type(reserved) is not list or any(
+            not isinstance(t, str) or not re.fullmatch(r'\{REDACTED-[\w -]+\}', t) for t in reserved
+        ) or len(set(reserved)) != len(reserved):
+            raise ValueError('Invalid reservations')
+        phrases, tokens = set(), set(reserved)
         for scope in [data['profile'], *data['sessions'].values()]:
             inherited = scope is not data['profile'] and scope['enabled'] is None
             if type(scope['enabled']) is not bool and not inherited:
@@ -66,22 +77,40 @@ class Redaction:
                 text = text[:-10].rstrip()
             action, _, value = text.partition(' ')
             value = value.strip()
-            if value in ('help', '--help'):
+            if action != 'redact':
+                return ERROR
+            if value in ('', 'help', '--help'):
                 return HELP
+            subcommand, _, value = value.partition(' ')
+            value = value.strip()
+            if subcommand not in ('add', 'remove', 'list', 'on', 'off') or (subcommand not in ('add', 'remove') and value):
+                return ERROR
             if not profile and not session_id:
                 return 'Error: concrete session ID unavailable; use explicit --profile scope or a supported session surface.'
             with updates._lock(self.ctx):
                 data = self.load()
                 default = {**empty_scope(), 'enabled': None}
-                # Status neither stores an override nor acknowledges a boundary.
-                if action == 'redact' and value in ('', 'status'):
-                    return self.status(data['profile'] if profile else data['sessions'].get(session_id, default))
+                # Listing neither stores an override nor acknowledges a boundary.
+                if subcommand == 'list':
+                    scope = data['profile'] if profile else data['sessions'].get(session_id, default)
+                    lines = ['Selected scope: ' + ('profile' if profile else 'session'), self.status(scope)]
+                    lines += [json.dumps(p, ensure_ascii=True) + ' -> ' + t for p, t in scope['entries']]
+                    if not profile:
+                        lines += ['Inherited profile rules: ' + self.status(data['profile'])]
+                        lines += [json.dumps(p, ensure_ascii=True) + ' -> ' + t for p, t in data['profile']['entries']]
+                    lines += ['Warning: originals shown in shared chat/history; not guaranteed private.']
+                    return '\n'.join(lines)
                 scope = data['profile'] if profile else data['sessions'].setdefault(session_id, default)
-                if action == 'unredact' and not value:
-                    scope['enabled'] = False
-                elif action == 'redact' and value in ('on', 'off'):
-                    scope['enabled'] = value == 'on'
-                elif action == 'redact':
+                if subcommand in ('on', 'off'):
+                    scope['enabled'] = subcommand == 'on'
+                elif subcommand == 'remove':
+                    phrases = {part.strip() for part in value.split(',')}
+                    if not phrases or not phrases <= {p for p, _ in scope['entries']}:
+                        raise ValueError('Unknown rule')
+                    retired = [t for p, t in scope['entries'] if p in phrases]
+                    data.setdefault('reserved', []).extend(retired)
+                    scope['entries'] = [e for e in scope['entries'] if e[0] not in phrases]
+                elif subcommand == 'add':
                     existing = [e for s in [data['profile'], *data['sessions'].values()] for e in s['entries']]
                     for part in value.split(','):
                         phrase, sep, alias = part.strip().partition('=')
@@ -91,18 +120,21 @@ class Redaction:
                         if sep and (not re.fullmatch(r'[\w][\w -]{0,63}', alias) or alias.isdecimal()):
                             raise ValueError('Invalid alias')
                         token = '{REDACTED-' + (alias if sep else str(data['next'])) + '}'
-                        if any(phrase == p or token == t for p, t in existing):
+                        if token in data.get('reserved', []) or any(phrase == p or token == t for p, t in existing):
                             raise ValueError('Collision')
                         entry = [phrase, token]
                         scope['entries'].append(entry)
                         existing.append(entry)
                         data['next'] += 1
-                    if any(p in t for p, _ in existing for _, t in existing):
+                    if any(p in t for p, _ in existing for t in [e[1] for e in existing] + data.get('reserved', [])):
                         raise ValueError('Placeholder collision')
                     scope['enabled'] = True
                 else:
                     raise ValueError('Invalid command')
                 self.ctx.state.set(KEY, data)
+                if subcommand == 'remove':
+                    return (f'{len(retired)} phrases removed. ' + self.status(scope) +
+                            ' Removing rules may expose original historical text on the next call.')
                 return self.status(scope)
         except Exception:
             # Neither values nor exception details belong in command output/logs.

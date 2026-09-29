@@ -55,8 +55,12 @@ You can configure this later. The existing one-time first-session setup reminder
 remains available if you haven't handled setup yet.
 
 For optional local literal redaction, start with `/fulcra redact help`.
-`/fulcra redact Leif Meyer = user name, Hermes` adds session rules without a
-Fulcra upload. Streaming placeholders may remain visible; this is not blanket
+`/fulcra redact add Leif Meyer = user name, Hermes` adds session rules without a
+Fulcra upload. Use `redact remove` with exact phrases, `redact list` to display
+phrases/tokens, and `redact on|off` to toggle protection. Lists appear directly to
+the human, not the model, but shared chat/history is not guaranteed private.
+Removing rules may expose original history next call.
+Streaming placeholders may remain visible; this is not blanket
 protection for tools, logs, transcripts or auxiliary models. See
 [redaction and limits](https://github.com/fulcradynamics/fulcra-hermes-plugin/blob/main/docs/redaction.md)
 before using `--profile` or turning protection off.

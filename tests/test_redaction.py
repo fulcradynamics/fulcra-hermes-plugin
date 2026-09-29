@@ -13,40 +13,40 @@ class RedactionTests(RedactionReviewContracts, unittest.TestCase):
 
     def test_commands_stable_ids_isolation_and_generic_errors(self):
         command = lambda text: self.guard.command(text, session_id='A')
-        result = command('redact Leif Meyer = user name, Hermes')
+        result = command('redact add Leif Meyer = user name, Hermes')
         self.assertIn('2 phrases', result)
         self.assertNotIn('Leif', result)
         rules = self.guard.rules('A')
         self.assertEqual(rules['entries'], [['Leif Meyer', '{REDACTED-user name}'], ['Hermes', '{REDACTED-2}']])
         self.assertEqual(self.guard.rules('B')['entries'], [])
-        self.assertTrue(command('redact Another = user name').startswith('Error:'))
-        self.assertNotIn('Another', command('redact Another = user name'))
+        self.assertTrue(command('redact add Another = user name').startswith('Error:'))
+        self.assertNotIn('Another', command('redact add Another = user name'))
         command('redact off')
         self.assertFalse(self.guard.rules('A')['enabled'])
         command('redact on')
-        command('redact Third')
+        command('redact add Third')
         self.assertEqual(self.guard.rules('A')['entries'][-1][1], '{REDACTED-3}')
         self.assertEqual(self.ctx.config, {})
-        self.assertIn('--profile', self.guard.command('redact secret'))
+        self.assertIn('--profile', self.guard.command('redact add secret'))
 
     def test_dispatch_profile_rules_and_toggle(self):
         self.plugin.register(self.ctx)
         self.assertIn('llm_execution', self.ctx.middleware)
         setup = self.plugin.plugin_setup.Setup(self.ctx)
         self.assertIn('invalid choice', setup.command('raw'))
-        self.assertIn('1 phrases', setup.command('redact secret --profile'))
+        self.assertIn('1 phrases', setup.command('redact add secret --profile'))
         self.assertEqual(self.guard.rules('A')['entries'], self.guard.rules('B')['entries'])
         token = self.ctx.state.profile.set('b')
         self.assertEqual(self.guard.rules('A')['entries'], [])
         self.ctx.state.profile.reset(token)
         self.assertEqual(len(self.guard.rules('A')['entries']), 1)
-        self.assertIn('Redaction off', setup.command('unredact --profile'))
+        self.assertIn('Redaction off', setup.command('redact off --profile'))
         self.assertFalse(self.guard.rules('A')['enabled'])
         self.assertNotIn('restore', self.guard.load()['profile'])
 
     def test_unknown_shapes_missing_identity_and_tool_only(self):
         from types import SimpleNamespace as NS
-        self.guard.command('redact private', session_id='A')
+        self.guard.command('redact add private', session_id='A')
         sent = []
         for request, session in [({'messages': [{'role': 'user', 'content': 'private'}], 'mystery': 'x'}, 'A'),
                                  ({'messages': [{'role': 'user', 'content': 'private'}]}, '')]:
@@ -60,15 +60,15 @@ class RedactionTests(RedactionReviewContracts, unittest.TestCase):
         response = self.guard.execute(request, provider, session_id='A')
         self.assertEqual(response.choices[0].message.tool_calls[0].function.arguments, call.function.arguments)
         self.assertIn('1 substitutions', response.choices[0].message.content)
-        self.guard.command('unredact', session_id='A')
+        self.guard.command('redact off', session_id='A')
         response = self.guard.execute(request, lambda r: NS(choices=[NS(message=NS(content='{REDACTED-1}', tool_calls=[]))]), session_id='A')
         self.assertIn('{REDACTED-1}', response.choices[0].message.content)
         self.assertNotIn('private', response.choices[0].message.content)
 
     def test_collisions_opaque_data_and_stable_prefix(self):
         import copy
-        self.assertTrue(self.guard.command('redact secret = secret', session_id='A').startswith('Error:'))
-        self.guard.command('redact secret', session_id='A')
+        self.assertTrue(self.guard.command('redact add secret = secret', session_id='A').startswith('Error:'))
+        self.guard.command('redact add secret', session_id='A')
         payload = self.plugin.redaction.redact_request
         request = {'messages': [{'role': 'user', 'content': 'secret'},
                                {'role': 'assistant', 'content': None, 'tool_calls': [
@@ -96,7 +96,7 @@ class RedactionTests(RedactionReviewContracts, unittest.TestCase):
     def test_execution_round_trip_history_and_fail_closed(self):
         from types import SimpleNamespace as NS
         import copy
-        self.guard.command('redact Leif, Leif Meyer = user name', session_id='A')
+        self.guard.command('redact add Leif, Leif Meyer = user name', session_id='A')
         request = {'messages': [{'role': 'user', 'content': 'Leif Meyer and Leif; leif'},
                                 {'role': 'assistant', 'content': 'Leif Meyer'}]}
         original = copy.deepcopy(request)

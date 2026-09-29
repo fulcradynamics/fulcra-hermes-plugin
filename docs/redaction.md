@@ -9,9 +9,9 @@ request hook, stale request/response bridge, or one-message injection is involve
 In a supported session:
 
 ```text
-/fulcra redact Leif Meyer = user name, Hermes
-/fulcra redact status
-/fulcra unredact
+/fulcra redact add Leif Meyer = user name, Hermes
+/fulcra redact list
+/fulcra redact remove Leif Meyer, Hermes
 /fulcra redact off
 /fulcra redact on
 ```
@@ -19,17 +19,27 @@ In a supported session:
 The first command adds two exact, case-sensitive literal phrases and enables
 outbound redaction and completed-text restoration. It produces
 `{REDACTED-user name}` and `{REDACTED-2}`. `redact on|off` toggles both together.
-Bare `unredact [--profile]` aliases `redact off`: it stops outbound redaction and
-completed restoration, and may send original history on subsequent calls.
-There is no independent restoration setting or `unredact on|off` syntax.
-There is no `/fulcra raw`, automatic next-call bypass, or
-submission of command arguments to a model.
+`remove` accepts comma-separated exact original phrases in the selected scope,
+not aliases or token IDs. Unknown entries reject the whole batch with a generic
+error and no changes. Removing the last phrase preserves the scope's on/off state;
+adding rules enables it. Removal may expose original historical text next call.
+There is no `unredact`, legacy implicit add, `redact status`, top-level `/redact`,
+independent restoration setting, `/fulcra raw`, or automatic next-call bypass.
+Bare `redact` and `redact help` show help. Add/remove acknowledgements show counts,
+not original values.
+
+`list` deliberately displays original phrases and tokens directly to the human,
+with the selected scope labeled and inherited profile rules in a separate section.
+It never lists other sessions. The verified slash dispatch paths do not invoke an
+LLM, append model history, inject a message, or return a model tool result.
+This is **not a private channel**: shared chat/history, logs, raw channel-history
+ingestion, or someone copying the list into a prompt can expose it later.
 
 Append `--profile` to any command to address the active profile's shared rules:
 
 ```text
-/fulcra redact Leif Meyer = user name, Hermes --profile
-/fulcra redact status --profile
+/fulcra redact add Leif Meyer = user name, Hermes --profile
+/fulcra redact list --profile
 /fulcra redact off --profile
 ```
 
@@ -37,10 +47,10 @@ Session rules combine with enabled profile rules. An explicit session `redact
 off` overrides both for that session. A profile toggle controls profile rules,
 not independent session rules. Session outbound state is tri-state: inherit,
 on, or off; profile state is always boolean. Session `redact on`, `redact off`,
-`unredact`, or adding session rules sets an explicit override for both outbound
-redaction and completed restoration. Status/help are read-only: they never create
-an override or freeze profile inheritance. Status reports the selected scope's
-stored phrase count and enabled state, not another session's values.
+or adding session rules sets an explicit override for both outbound
+redaction and completed restoration. List/help are read-only: they never create
+an override or freeze profile inheritance. Listing includes stored enabled state;
+an explicit session off suppresses inherited profile protection too.
 
 Session commands use the supported `get_session_env('HERMES_SESSION_ID')`.
 They require a concrete ID, never a global last-session value or a guessed
@@ -54,11 +64,11 @@ identity while rules are active refuses the provider call.
 enabled in this profile, a concrete ID without an explicit outbound choice refuses
 before provider contact, even if profile rules exist. This includes compression
 rotation, `/new`, forks, and genuinely unrelated new chats. There is no verified
-lineage API or continuation detection. Status/help checks do not acknowledge
-a new boundary; bare `unredact` explicitly acknowledges it with protection off.
+lineage API or continuation detection. List/help checks do not acknowledge
+a new boundary; `redact off` explicitly acknowledges it with protection off.
 
 To acknowledge a new boundary, explicitly run session `/fulcra redact on`,
-`/fulcra redact off` (or `/fulcra unredact`), or add session rules. This does **not** copy another session's
+`/fulcra redact off`, or add session rules. This does **not** copy another session's
 rules: `on` enables only this session's own rules plus enabled profile rules, and
 `off` allows raw history. After rotation, `on` alone does not restore protection
 for phrases owned by the old ID. Review the history/privacy scope before consenting.
@@ -69,7 +79,7 @@ Commas separate phrases; one `=` introduces an optional alias. Leading/trailing
 whitespace is trimmed; interior spaces are literal. Quotes have no special meaning.
 Literal comma/equal separators are not supported. Aliases use word characters,
 spaces and hyphens, begin with a word character, and cannot be purely numeric.
-Reserved control words (`on`, `off`, `status`, `help`) are commands when alone.
+Subcommands are explicit; control words can be phrases after `add` or `remove`.
 The reserved `{REDACTED-...}` namespace is rejected in rule values and user input.
 Elsewhere only exact tokens allocated in the current effective rules may be
 replayed. Unknown or malformed placeholder-shaped text refuses in instructions,
@@ -82,11 +92,15 @@ This also rejects the same phrase in two independent sessions. Independent-sessi
 duplicate phrases are not implemented; profile rules are an option only when
 intentional sharing with every chat in that profile is appropriate.
 
-Rules are append-only; adding again is a collision, not a rename. Turning them
+Adding an existing phrase is a collision, not a rename. Turning rules
 off retains mappings. A profile-local monotonic counter assigns IDs (aliases also
 consume an ID); sharing the allocator prevents session/profile collisions and
 keeps IDs monotonic in every session. IDs are not recycled and need not start at
-1 in each new session. Requests never allocate IDs or upload the dictionary.
+1 in each new session. Removal retains only reserved tokens, not deleted originals;
+retired aliases cannot bind a new original in any scope of the profile. Stale tokens
+in outbound replay are refused while protection is active, never restored to another phrase. Existing
+local state without reservations remains valid. Requests never allocate IDs or
+upload the dictionary.
 
 ## Protection boundary
 
@@ -130,7 +144,7 @@ keeps IDs monotonic in every session. IDs are not recycled and need not start at
 
 With unchanged rules, transformation is deterministic, IDs are stable, and
 per-message notices keep historical prefixes stable where possible. Original
-history is never mutated in place. Dynamic additions and `redact on/off` change
+history is never mutated in place. Additions, removals and `redact on/off` change
 wire history and may invalidate provider caches. Redaction cannot retract text
 already disclosed. Start a fresh session when changing the privacy boundary.
 
@@ -139,7 +153,7 @@ supported changed message text, never a raw phrase dictionary. The human receive
 outbound and restored counts in the completed assistant text. Counts describe
 literal occurrences across the request, including history, not unique phrases or
 only the most recent turn. Tool-only completed responses get an assistant notice
-without editing the tool call. Commands show counts and switches, never values.
+without editing the tool call. Only explicit `list` displays the phrase dictionary.
 
 ## Failure and storage
 
@@ -155,8 +169,9 @@ zero synthetic usage.
 Rules and originals live only in the profile-scoped `ctx.state` key
 `redaction.v1`, under Hermes's plugin-data directory, not config.yaml or Fulcra.
 Hermes writes state atomically with mode 0600. This is local plaintext storage,
-not encryption; protect the OS account and backups. No automatic expiry, deletion
-or external upload is implemented. State quotas/errors return generic command
+not encryption; protect the OS account and backups. Explicit removal deletes the
+stored original, not prior chat/history or backups. No automatic expiry or external
+upload is implemented. State quotas/errors return generic command
 errors; malformed state refuses execution rather than silently disabling privacy.
 In-process commands use the existing profile-state lock; use one Hermes process
 per profile when changing rules (cross-process read/modify/write is not a plugin
@@ -173,14 +188,17 @@ python3 tests/run_redaction_probe.py --doctor --python /path/to/provisioned/pyth
 
 The verified local provisioned interpreter was
 `/home/fulcra/.hermes/installs/6c5c3c30edc2f176/environments/12d524f9cf7049a7b0579680417b4f8f/venv/bin/python`,
-with source `/home/fulcra/.hermes/hermes-agent`. Spec-correction run logs are
-`.pytest_cache/spec-{red,suite,probe,doctor}.log` in the checkout.
+with source `/home/fulcra/.hermes/hermes-agent`.
 
 The launcher uses `-I -B`, disposable HOME/HERMES_HOME/XDG directories under
 `TMPDIR`, a scrubbed environment, no installed plugin discovery, and a socket
 audit guard. It does not make live LLM calls. Provider responses are synthetic
 boundary fixtures; real Hermes middleware, transport builders, `perform_api_call`,
-response validation and normalization are exercised. Chat uses a real OpenAI SDK
+response validation and normalization are exercised. Real CLI `process_command`,
+TUI `command.dispatch`/`slash.exec`, and gateway plugin dispatch are also exercised
+with model invocation, injection and SessionDB message-append traps. Bootstrap
+initialization is stubbed to avoid import-time provisioning; command routes are not.
+Chat uses a real OpenAI SDK
 response; Anthropic/Responses use protocol-shaped objects and Bedrock uses its
 wire dict. The provisioned environment does not include the Anthropic SDK.
 
