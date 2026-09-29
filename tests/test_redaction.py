@@ -33,6 +33,7 @@ class RedactionTests(RedactionReviewContracts, unittest.TestCase):
         self.plugin.register(self.ctx)
         self.assertIn('llm_execution', self.ctx.middleware)
         setup = self.plugin.plugin_setup.Setup(self.ctx)
+        self.assertIn('invalid choice', setup.command('raw'))
         self.assertIn('1 phrases', setup.command('redact secret --profile'))
         self.assertEqual(self.guard.rules('A')['entries'], self.guard.rules('B')['entries'])
         token = self.ctx.state.profile.set('b')

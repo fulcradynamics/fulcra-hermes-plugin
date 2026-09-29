@@ -66,9 +66,7 @@ class Setup:
     def command(self, raw_args=''):
         """Handle explicit slash setup without prompts or host exits."""
         action = raw_args.strip().split(maxsplit=1)[0] if raw_args.strip() else ''
-        if action in ('redact', 'unredact', 'raw'):
-            if action == 'raw':
-                return 'Error: /fulcra raw is not supported. Use /fulcra redact off or on explicitly.'
+        if action in ('redact', 'unredact'):
             try:
                 session_id = ''
                 if not raw_args.rstrip().endswith(' --profile'):
