@@ -116,7 +116,8 @@ class ValidationTests(unittest.TestCase):
             self.api.read_file.assert_not_called()
 
     def test_empty_group_identifiers_do_not_fall_back_to_own_records(self):
-        self.api.resolve_data_type.return_value = [{'id': 'HeartRate'}]
+        # v1alpha1 group IDs are query parameters, not v0 route segments.
+        self.api.resolve_data_type.return_value = [{'id': 'HeartRate', 'api_version': 'v1alpha1'}]
         with patch.object(self.tools, 'get_records', return_value=[]) as fetch:
             result = self.tools.fulcra_get_records({'data_type': 'HeartRate', 'latest': True, 'group_id': '', 'participant_id': ''})
         self.assertEqual(result, '[]')
