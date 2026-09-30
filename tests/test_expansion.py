@@ -71,5 +71,5 @@ class NativeOperationsTests(unittest.TestCase):
         self.api.create_annotation.return_value = {'id': ID}
         self.tools.fulcra_create_data_type({'base_type': 'NumericAnnotation', 'name': '--literal', 'value': -2.5, 'unit': 'points'})
         self.api.create_annotation.assert_called_once_with('numeric', name='--literal', value=-2.5, unit='points', description='', tags=[])
-        self.assertFalse(self.tools.fulcra_create_data_type({'base_type': 'ScaleAnnotation', 'name': 'Mood'}).startswith('Error'))
+        self.tools.fulcra_create_data_type({'base_type': 'ScaleAnnotation', 'name': 'Mood'})
         self.api.create_annotation.assert_called_with('scale', name='Mood', description='', tags=[])

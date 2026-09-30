@@ -33,10 +33,7 @@ class CredentialTests(unittest.TestCase):
                 body = self.rfile.read(int(self.headers.get('Content-Length', '0')))
                 received.append((self.command, self.path, dict(self.headers), body))
                 path = urlsplit(self.path).path
-                invalid = parse_qs(urlsplit(self.path).query).get('data_type') == ['bad type']
-                if invalid:
-                    result = {'detail': [{'loc': ['query', 'data_type'], 'type': 'string_pattern_mismatch', 'msg': 'private-value', 'input': 'private-value'}]}
-                elif path == '/data/v1/catalog':
+                if path == '/data/v1/catalog':
                     result = [{'id': 'MomentAnnotation', 'api_version': 'v1alpha1', 'fulcra_userid': ID, 'recordable': True, 'record_spec': {'type': 'event'}}]
                 elif path.endswith('/schema'):
                     result = {'type': 'object', 'properties': {'note': {'type': 'string'}}, 'required': ['note']}
@@ -51,7 +48,7 @@ class CredentialTests(unittest.TestCase):
                 else:
                     result = {}
                 data = result if isinstance(result, bytes) else json.dumps(result).encode()
-                self.send_response(422 if invalid else 200)
+                self.send_response(200)
                 self.send_header('Content-Length', str(len(data)))
                 self.end_headers()
                 self.wfile.write(data)
@@ -68,12 +65,6 @@ class CredentialTests(unittest.TestCase):
             refreshed = native.FulcraCredentials(access_token=token, access_token_expiration=datetime.now() + timedelta(hours=1))
             with patch.object(api.oidc, 'refresh_credentials', return_value=refreshed) as refresh, patch.object(tools, 'client', return_value=api):
                 self.assertEqual(json.loads(tools.fulcra_data_catalog({}))[0]['id'], 'MomentAnnotation')
-                error = tools.fulcra_data_catalog({'data_type': 'bad type'})
-                self.assertIn('HTTP 422', error)
-                self.assertIn('query.data_type: string_pattern_mismatch', error)
-                self.assertNotIn('private-value', error)
-                self.assertNotIn('http://', error)
-                self.assertEqual(parse_qs(urlsplit(received[-1][1]).query)['data_type'], ['bad type'])
                 self.assertEqual(json.loads(tools.fulcra_record({'data_type': 'MomentAnnotation', 'records': [{'note': 'literal\né'}]})), {'upload_id': ID})
                 self.assertEqual(json.loads(tools.fulcra_file_upload({'path': '/binary', 'content': 'hello'})), {'id': ID})
                 self.assertEqual(api.read_file('/binary'), payload)
