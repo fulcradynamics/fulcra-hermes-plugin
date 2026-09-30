@@ -8,8 +8,7 @@ sharing. This plugin connects Hermes to your Fulcra account.
 
 If you installed with `--no-enable`, run `hermes plugins enable context`.
 Start a fresh Hermes session; for messaging platforms, restart the gateway to
-load the plugin. You need [uv](https://docs.astral.sh/uv/getting-started/installation/)
-on the Hermes host.
+load the plugin. API calls run natively in Python; no Fulcra CLI or uv is needed.
 
 Ask Hermes: **“Show me my Fulcra data catalog.”** If you aren't signed in,
 Hermes provides a verification link and code. Sign-in is separate from setup.

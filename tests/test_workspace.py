@@ -46,7 +46,7 @@ class WorkspaceTests(unittest.TestCase):
         self.store = FileStore()
         self.hook = self.plugin.workspace.Workspace(self.ctx).pre
         self.ctx.set_config('workspace_context_enabled', True)
-        stub = patch.object(self.plugin.tools, '_run_cli', side_effect=self.store)
+        stub = patch.object(self.plugin.tools, 'fixture_call', side_effect=self.store)
         stub.start()
         self.addCleanup(stub.stop)
 
@@ -170,7 +170,7 @@ class WorkspaceTests(unittest.TestCase):
             clock[0] += 4
             return original(argv, timeout)
         with patch.object(self.plugin.workspace.time, 'monotonic', side_effect=lambda: clock[0]), \
-             patch.object(self.plugin.tools, '_run_cli', side_effect=slow):
+             patch.object(self.plugin.tools, 'fixture_call', side_effect=slow):
             text = self.pre('slow')['context']
         self.assertEqual(clock[0], 25)
         self.assertIn('incomplete', text)
@@ -185,7 +185,7 @@ class WorkspaceTests(unittest.TestCase):
             if argv[1] == 'upload':
                 self.store.files[argv[3]] = 'not the seed'
             return result
-        with patch.object(self.plugin.tools, '_run_cli', side_effect=mismatch):
+        with patch.object(self.plugin.tools, 'fixture_call', side_effect=mismatch):
             self.assertIn('incomplete', self.pre('mismatch')['context'])
         self.assertNotIn(marker, self.store.files)
         self.store.files.clear()
@@ -196,7 +196,7 @@ class WorkspaceTests(unittest.TestCase):
             if argv[1] == 'upload':
                 raise subprocess.TimeoutExpired('private upload', timeout)
             return result
-        with patch.object(self.plugin.tools, '_run_cli', side_effect=uncertain):
+        with patch.object(self.plugin.tools, 'fixture_call', side_effect=uncertain):
             self.assertIn('incomplete', self.pre('uncertain')['context'])
         self.assertEqual(sum(a[1] == 'upload' for a, _ in self.store.calls), 1)
         self.assertEqual(self.store.calls[-1][0][1], 'upload')
@@ -214,7 +214,7 @@ class WorkspaceTests(unittest.TestCase):
                 if argv[2] == marker:
                     self.store.files[marker] = 'User-created context; preserve exactly'
                 raise
-        with patch.object(self.plugin.tools, '_run_cli', side_effect=concurrent_create):
+        with patch.object(self.plugin.tools, 'fixture_call', side_effect=concurrent_create):
             self.assertIn('User-created context', self.pre('concurrent')['context'])
         self.assertFalse(any(a[1] == 'upload' for a, _ in self.store.calls))
         self.assertFalse(any(p.exists() for p in self.store.locals))

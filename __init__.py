@@ -5,7 +5,7 @@ from . import mesh, mesh_updates, plugin_setup, redaction, tools, updates, works
 
 
 def register(ctx):
-    """Wire fixed CLI handlers to their typed schemas, then bundled resources."""
+    """Register native tools and official Hermes hooks without starting work."""
     for name, schema in tools.TOOL_SCHEMAS.items():
         ctx.register_tool(name=name, toolset="context", schema=schema, handler=getattr(tools, name))
 

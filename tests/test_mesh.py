@@ -24,7 +24,8 @@ def load_plugin():
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
-    return module
+    from native_fixture import install
+    return install(module)
 
 
 class State:
@@ -61,7 +62,7 @@ class MeshTests(unittest.TestCase):
         stub = patch.dict(sys.modules, {"hermes_constants": constants})
         stub.start()
         self.addCleanup(stub.stop)
-        boundary = patch.object(self.plugin.tools, "_run_cli", side_effect=self.cli)
+        boundary = patch.object(self.plugin.tools, "fixture_call", side_effect=self.cli)
         boundary.start()
         self.addCleanup(boundary.stop)
 
@@ -166,7 +167,7 @@ class MeshTests(unittest.TestCase):
             if argv[:2] == ["data-type", "create"]:
                 raise subprocess.TimeoutExpired("fixture", 1)
             return original(argv)
-        with patch.object(self.plugin.tools, "_run_cli", side_effect=uncertain_create) as run:
+        with patch.object(self.plugin.tools, "fixture_call", side_effect=uncertain_create) as run:
             self.assertIn("creation uncertain", self.call("create"))
             self.assertIn("No automatic recreate", self.call("create"))
             self.assertEqual(sum(c.args[0][:2] == ["data-type", "create"] for c in run.call_args_list), 1)
@@ -181,7 +182,7 @@ class MeshTests(unittest.TestCase):
             if argv[0] == "catalog":
                 return json.dumps({"id": CHANNEL, "fulcra_userid": PEER})
             return original(argv)
-        with patch.object(self.plugin.tools, "_run_cli", side_effect=foreign_catalog):
+        with patch.object(self.plugin.tools, "fixture_call", side_effect=foreign_catalog):
             self.assertIn("owned", self.call("create", existing_outbox=CHANNEL))
         self.assertEqual(self.state.data, {})
         self.outgoing[0]["permissions"] = [{"allowed_fulcra_userid": OWN}]
@@ -254,10 +255,10 @@ class MeshTests(unittest.TestCase):
             if argv[0] == "get-records":
                 raise RuntimeError("fixture read failed")
             return original(argv)
-        with patch.object(self.plugin.tools, "_run_cli", side_effect=failed_read):
+        with patch.object(self.plugin.tools, "fixture_call", side_effect=failed_read):
             self.assertIn("Error", self.call("receive"))
         self.assertEqual(self.state.data, before)
-        with patch.object(self.plugin.tools, "_save_output", side_effect=OSError("fixture full")):
+        with patch.object(sys.modules[self.plugin.__name__ + '.output'], "_save_output", side_effect=OSError("fixture full")):
             self.assertIn("Error", self.call("receive"))
         self.assertEqual(self.state.data, before)
         output = self.call("receive")

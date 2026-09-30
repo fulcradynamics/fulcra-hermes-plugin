@@ -2,11 +2,12 @@
 import json
 from pathlib import Path
 import re
-import tempfile
+
 import threading
 import time
 
 from . import tools
+from .client import MissingFile
 
 SEGMENT = r'^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$'
 SETTINGS = {
@@ -80,25 +81,20 @@ def templates(role):
     }
 
 
-def _download(remote, local, deadline):
-    """Read the CLI's downloaded file, recognizing only its exact missing-path diagnostic."""
-    local.unlink(missing_ok=True)
+def _download(remote, deadline):
+    """Only a confirmed empty file lookup permits missing-only bootstrap."""
     try:
-        _call(['file', 'download', remote, str(local)], deadline)
-    except RuntimeError as exc:
-        if str(exc) == f'Fulcra CLI exited with status 1: Error: File not found in Fulcra: {remote}':
-            return None
-        raise
-    with local.open(encoding='utf-8') as stream:
-        return stream.read(FILE_CHARS + 1)
+        return _client(deadline).read_file(remote).decode('utf-8')[:FILE_CHARS + 1]
+    except MissingFile:
+        return None
 
 
-def _call(argv, deadline):
+def _client(deadline):
     """Spend from one startup deadline, including verification and lock wait."""
     remaining = deadline - time.monotonic()
     if remaining <= 0:
         raise TimeoutError('Workspace startup budget exhausted')
-    return tools._run_cli(argv, timeout=remaining)
+    return tools.client(timeout=remaining)
 
 
 class Workspace:
@@ -141,28 +137,22 @@ class Workspace:
         seeded = set()
         incomplete = False
         try:
-            with tempfile.TemporaryDirectory(prefix='fulcra-workspace-') as directory:
-                local = Path(directory) / 'context.md'
-                text = _download(remote, local, deadline)
-                if text is None:
-                    # Insertion order puts context.md after every successful scaffold check.
-                    # Existing details are never summarized, migrated or injected.
-                    for relative, seed in templates(role).items():
-                        target = f'/workspace/{name}/{relative}'
-                        existing = _download(target, local, deadline)
+            text = _download(remote, deadline)
+            if text is None:
+                for relative, seed in templates(role).items():
+                    target = f'/workspace/{name}/{relative}'
+                    existing = _download(target, deadline)
+                    if existing is None:
+                        # API has no conditional create: narrow, but cannot eliminate, races.
+                        existing = _download(target, deadline)
                         if existing is None:
-                            # CLI has no conditional create: narrow, but cannot eliminate, races.
-                            existing = _download(target, local, deadline)
-                            if existing is None:
-                                local.write_text(seed, encoding='utf-8')
-                                local.chmod(0o600)
-                                _call(['file', 'upload', str(local), target], deadline)
-                                seeded.add(relative)
-                                existing = _download(target, local, deadline)
-                                if existing != seed:
-                                    raise RuntimeError('Workspace seed readback mismatch')
-                        if relative == 'context.md':
-                            text = existing
+                            _client(deadline).write_file(target, seed.encode('utf-8'))
+                            seeded.add(relative)
+                            existing = _download(target, deadline)
+                            if existing != seed:
+                                raise RuntimeError('Workspace seed readback mismatch')
+                    if relative == 'context.md':
+                        text = existing
         except Exception:
             # Stop on all failures, including decode/auth and uncertain mutations.
             # Never create the completion entrypoint after a failed scaffold check.

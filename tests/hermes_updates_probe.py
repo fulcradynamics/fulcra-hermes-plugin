@@ -32,7 +32,7 @@ def main():
         from hermes_cli.lifecycle import invoke_hook
         from agent.turn_context import _collect_pre_llm_call_context, compose_user_api_content
         from tools.registry import registry
-        import yaml
+        import hermes_yaml as yaml
 
         set_multiplex_active(True)
         plugin = load_plugin()
@@ -84,8 +84,7 @@ def main():
         def cli(argv, timeout):
             """Serve fixtures while verifying copied profile and secret context."""
             home = get_hermes_home()
-            allowed, env = plugin.tools._runtime_context()  # Real profile-aware runtime resolution.
-            assert allowed and env['HERMES_HOME'] == str(home)
+
             assert get_secret('FULCRA_PROBE_SECRET') == home.name
             if argv[0] == 'file':
                 assert 0 < timeout <= 25
@@ -114,7 +113,7 @@ def main():
                     assert not thread.is_alive()
 
         with patch.object(socket.socket, 'connect', side_effect=AssertionError('Network forbidden')), \
-             patch.object(plugin.tools, '_run_cli', side_effect=cli), \
+             patch.object(plugin.tools, 'fixture_call', side_effect=cli), \
              patch.object(plugin.updates.time, 'time', side_effect=lambda: now[0]):
             for name in ('a', 'b'):
                 with scope(name) as home:

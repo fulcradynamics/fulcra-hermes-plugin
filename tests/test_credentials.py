@@ -1,71 +1,96 @@
-"""Opt-in integration test of credential ownership in the published CLI.
-
-FULCRA_CLI_SMOKE=1 python3 -m unittest discover -s tests -v
-Downloads the pinned CLI into uv's cache. Uses only temporary fixture credentials;
-no authentication or Fulcra network requests are made.
-"""
-import os
+"""Native wire exercise over local HTTP with synthetic credentials only."""
+import base64
+from datetime import datetime, timedelta
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import importlib
+import io
+import json
 from pathlib import Path
-import shutil
-import subprocess
 import tempfile
+import threading
 import unittest
-
+from unittest.mock import patch
+from urllib.parse import urlsplit, parse_qs
 from test_tools import load_tools
 
+ID = '01234567-89ab-cdef-0123-456789abcdef'
 
-@unittest.skipUnless(os.environ.get("FULCRA_CLI_SMOKE") == "1", "set FULCRA_CLI_SMOKE=1 for uv integration")
+
 class CredentialTests(unittest.TestCase):
-    def test_pinned_cli_expansion_against_fixture_api(self):
-        root = Path(__file__).resolve().parents[1]
-        with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as directory:
-            result = subprocess.run(
-                [shutil.which("uv"), "tool", "run", "--isolated", "--no-config", "--from", load_tools().FULCRA_PACKAGE,
-                 "python", str(root / "tests" / "cli_fixture.py"), str(root), directory],
-                capture_output=True, text=True, timeout=180,
-            )
-        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
-        self.assertIn("PASS", result.stdout)
+    def test_local_http_catalog_record_upload_download_and_refresh(self):
+        tools = load_tools()
+        native = importlib.import_module('tool_fixture_plugin.client')
+        received = []
+        payload = b'\xffbinary\r\n'
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, *args):
+                pass
+            def do_GET(self):
+                self.respond()
+            def do_POST(self):
+                self.respond()
+            def respond(self):
+                body = self.rfile.read(int(self.headers.get('Content-Length', '0')))
+                received.append((self.command, self.path, dict(self.headers), body))
+                path = urlsplit(self.path).path
+                if path == '/data/v1/catalog':
+                    result = [{'id': 'MomentAnnotation', 'api_version': 'v1alpha1', 'fulcra_userid': ID, 'recordable': True, 'record_spec': {'type': 'event'}}]
+                elif path.endswith('/schema'):
+                    result = {'type': 'object', 'properties': {'note': {'type': 'string'}}, 'required': ['note']}
+                elif path.startswith('/ingest/'):
+                    result = {'upload_id': ID}
+                elif path == '/input/v1/file_upload' and self.command == 'POST':
+                    result = {'id': ID, 'url': f'http://127.0.0.1:{self.server.server_port}/signed'}
+                elif path == '/input/v1/file_upload':
+                    result = {'files': [{'id': ID}]}
+                elif path.endswith('/download'):
+                    result = payload
+                else:
+                    result = {}
+                data = result if isinstance(result, bytes) else json.dumps(result).encode()
+                self.send_response(200)
+                self.send_header('Content-Length', str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+        server = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
+        worker = threading.Thread(target=server.serve_forever, daemon=True)
+        worker.start()
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        token = 'header.' + base64.urlsafe_b64encode(json.dumps({'fulcradynamics.com/userid': ID}).encode()).decode() + '.signature'
+        with tempfile.TemporaryDirectory() as root, patch.object(native, 'credential_path', return_value=Path(root) / 'credentials.json'):
+            creds = native.FulcraCredentials(access_token=token, refresh_token='old-refresh', access_token_expiration=datetime.now() - timedelta(seconds=1))
+            native.save_credentials(creds)
+            api = native.Client(credentials=creds, oidc_audience=f'http://127.0.0.1:{server.server_port}')
+            refreshed = native.FulcraCredentials(access_token=token, access_token_expiration=datetime.now() + timedelta(hours=1))
+            with patch.object(api.oidc, 'refresh_credentials', return_value=refreshed) as refresh, patch.object(tools, 'client', return_value=api):
+                self.assertEqual(json.loads(tools.fulcra_data_catalog({}))[0]['id'], 'MomentAnnotation')
+                self.assertEqual(json.loads(tools.fulcra_record({'data_type': 'MomentAnnotation', 'records': [{'note': 'literal\né'}]})), {'upload_id': ID})
+                self.assertEqual(json.loads(tools.fulcra_file_upload({'path': '/binary', 'content': 'hello'})), {'id': ID})
+                self.assertEqual(api.read_file('/binary'), payload)
+                refresh.assert_called_once()
+            self.assertEqual(native.client().fulcra_credentials.refresh_token, 'old-refresh')
+        post = next(r for r in received if r[1].startswith('/ingest/'))
+        self.assertEqual(post[3], b'{"note": "literal\\n\\u00e9"}\n')
+        self.assertEqual(post[2]['Content-Type'], 'application/x-jsonl')
+        signed = next(r for r in received if r[1] == '/signed')
+        self.assertNotIn('Authorization', signed[2])
+        self.assertEqual(signed[3], b'hello')
+        self.assertTrue(all(r[2].get('Authorization') == 'Bearer ' + token for r in received if r[1] != '/signed'))
 
-    def test_published_cli_loads_and_saves_credentials(self):
-        uv = shutil.which("uv")
-        self.assertIsNotNone(uv, "uv must be installed for this integration test")
-        # Run SDK assertions inside uv's interpreter, never inside Hermes's.
-        script = '''
-import datetime, json, sys
-from pathlib import Path
-from click.testing import CliRunner
-from fulcra_api.cli import cli, utils
-from fulcra_api.core import FulcraAPI
-from fulcra_api.credentials import FulcraCredentials
-utils.CONFIG_PATH = Path(sys.argv[1])
-utils.CREDS_FILE = utils.CONFIG_PATH / "credentials.json"
-creds = FulcraCredentials(access_token="fixture-token", access_token_expiration=datetime.datetime.now() + datetime.timedelta(hours=1))
-utils.save_creds(creds)
-def catalog(client, **kwargs):
-    assert client.fulcra_credentials.access_token == "fixture-token"
-    assert callable(client.refresh_callback)
-    client.fulcra_credentials.access_token = "fixture-refreshed"
-    client.refresh_callback(client.fulcra_credentials)
-    return [{"id": "fixture-catalog"}]
-FulcraAPI.v1_catalog = catalog
-result = CliRunner().invoke(cli, ["catalog"])
-assert result.exit_code == 0, (result.output, repr(result.exception))
-assert [json.loads(line) for line in result.output.splitlines()] == [{"id": "fixture-catalog", "related_cli_commands": []}], result.output
-assert utils.load_creds().access_token == "fixture-refreshed"
-print("CLI credential load/refresh persistence: PASS (fixtures only)")
-'''
-        with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as directory:
-            probe = Path(directory) / "probe.py"
-            probe.write_text(script)
-            result = subprocess.run(
-                [uv, "tool", "run", "--isolated", "--no-config", "--from", load_tools().FULCRA_PACKAGE,
-                 "python", str(probe), directory],
-                capture_output=True, text=True, timeout=180,
-            )
-        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
-        self.assertIn("PASS", result.stdout)
+    def test_cross_origin_redirect_drops_bearer(self):
+        import urllib.request
+        load_tools()
+        native = importlib.import_module('tool_fixture_plugin.client')
+        self.assertTrue(hasattr(native, 'PrivateRedirect'), 'redirect privacy adapter missing')
+        request = urllib.request.Request('https://api.example/file', headers={'Authorization': 'Bearer private'})
+        redirected = native.PrivateRedirect().redirect_request(request, None, 302, 'found', {}, 'https://storage.example/signed')
+        self.assertFalse(redirected.has_header('Authorization'))
+        same = native.PrivateRedirect().redirect_request(request, None, 302, 'found', {}, 'https://api.example/other')
+        self.assertEqual(same.get_header('Authorization'), 'Bearer private')
 
-
-if __name__ == "__main__":
-    unittest.main()
+    def test_os_user_path_not_profile_or_xdg(self):
+        load_tools()
+        native = importlib.import_module('tool_fixture_plugin.client')
+        with patch.dict('os.environ', {'HERMES_HOME': '/profiles/a', 'XDG_CONFIG_HOME': '/different'}):
+            self.assertEqual(native.credential_path(), Path.home() / '.config/fulcra/credentials.json')

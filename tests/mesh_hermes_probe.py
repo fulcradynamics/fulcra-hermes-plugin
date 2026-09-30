@@ -37,7 +37,7 @@ def cli(argv):
 
 
 with tempfile.TemporaryDirectory(prefix='mesh-hermes-probe-') as root, \
-        patch.object(plugin.tools, '_run_cli', side_effect=cli), \
+        patch.object(plugin.tools, 'fixture_call', side_effect=cli), \
         patch.object(socket.socket, 'connect', side_effect=AssertionError('No networking')):
     homes = [Path(root) / name for name in ('a', 'b')]
     for home in homes:

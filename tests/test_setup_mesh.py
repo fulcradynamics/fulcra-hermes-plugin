@@ -30,7 +30,7 @@ class SetupMeshTests(unittest.TestCase):
         self.env = dict(v=1, mid=MID, to='helper', to_user=OWN, kind='directive',
                         pri='P2', slug='hello', body='untrusted preview')
         self.rows = [dict(note=json.dumps(self.env))]
-        for stub in (patch.object(self.plugin.tools, '_run_cli', side_effect=self.cli),
+        for stub in (patch.object(self.plugin.tools, 'fixture_call', side_effect=self.cli),
                      patch.object(self.plugin.mesh_updates.time, 'time', side_effect=lambda: self.now)):
             stub.start()
             self.addCleanup(stub.stop)
@@ -163,7 +163,7 @@ class SetupMeshTests(unittest.TestCase):
             if argv == ['share', 'list-incoming']:
                 self.own = '77777777-7777-4777-8777-777777777777'
             return result
-        with patch.object(self.plugin.tools, '_run_cli', side_effect=switch_during_list):
+        with patch.object(self.plugin.tools, 'fixture_call', side_effect=switch_during_list):
             self.cycle()
         self.assertIsNone(self.watcher.pre(session_id='chat'))
         self.assertEqual(self.ctx.state.get(self.plugin.mesh_updates.STATE_KEY)['data'], {})
@@ -176,7 +176,7 @@ class SetupMeshTests(unittest.TestCase):
             started.set()
             self.assertTrue(release.wait(2))
             return self.cli(argv, timeout)
-        with patch.object(self.plugin.tools, '_run_cli', side_effect=blocked):
+        with patch.object(self.plugin.tools, 'fixture_call', side_effect=blocked):
             self.now += 901
             self.watcher.post(session_id='chat')
             self.assertTrue(started.wait(1))
@@ -210,7 +210,7 @@ class SetupMeshTests(unittest.TestCase):
             started.set()
             self.assertTrue(release.wait(2))
             return self.cli(argv, timeout)
-        with patch.object(self.plugin.tools, '_run_cli', side_effect=blocked):
+        with patch.object(self.plugin.tools, 'fixture_call', side_effect=blocked):
             self.now += 901
             self.watcher.post(session_id='chat')
             self.assertTrue(started.wait(1))
@@ -219,7 +219,7 @@ class SetupMeshTests(unittest.TestCase):
         self.assertIsNone(self.watcher.pre(session_id='chat'))  # No stale pending resurrection.
         state = self.ctx.state.get(self.plugin.mesh_updates.STATE_KEY)
         assert state is not None
-        with patch.object(self.plugin.tools, '_run_cli', side_effect=RuntimeError('private token')) as run:
+        with patch.object(self.plugin.tools, 'fixture_call', side_effect=RuntimeError('private token')) as run:
             self.cycle()
             self.watcher.post(session_id='chat'); self.finish()
             self.assertEqual(run.call_count, 1)
@@ -234,7 +234,7 @@ class SetupMeshTests(unittest.TestCase):
             if argv[0] == 'get-records' and argv[1] == second:
                 return '{bad JSONL'
             return self.cli(argv, timeout)
-        with patch.object(self.plugin.tools, '_run_cli', side_effect=partial):
+        with patch.object(self.plugin.tools, 'fixture_call', side_effect=partial):
             self.cycle()
         self.assertEqual(self.ctx.state.get(self.plugin.mesh_updates.STATE_KEY)['data'], state['data'])
         self.shares.pop()
