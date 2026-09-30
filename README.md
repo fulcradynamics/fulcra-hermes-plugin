@@ -3,6 +3,9 @@
 Native Python tools for authentication, catalog/schema discovery, annotation types,
 record queries/writes/deletion, files, scoped data sharing and cross-account mesh.
 No CLI subprocess or uv dependency. Requires Python 3.11+ and jsonschema 4.x.
+jsonschema is used only for upstream record validation, not blanket tool-argument
+validation. Schemas guide callers; ordinary errors are left to the API. Plugin
+checks retain explicit sharing/deletion scope, routing semantics and local-file safety.
 The minimal upstream extraction and license are in [_vendor](./_vendor/PROVENANCE.md).
 
 ## Installation and setup

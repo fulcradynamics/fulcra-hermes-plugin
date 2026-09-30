@@ -19,14 +19,15 @@ def load_tools():
 
 
 class ToolTests(unittest.TestCase):
-    def test_schema_guards_before_any_request(self):
+    def test_safety_guards_before_any_request(self):
         tools = load_tools()
         bad = {
             'fulcra_create_share': [{'name': 'x', 'user_ids': []}, {'name': 'x', 'share_all': True}],
             'fulcra_delete_records': [{'data_type': 'HeartRate', 'record_ids': []}, {'data_type': 'HeartRate', 'record_ids': ['not-a-uuid']}],
-            'fulcra_update_share': [{'share_id': 'bad', 'share_all': True}],
+            'fulcra_update_share': [{'share_id': 'bad', 'share_all': 'false'}, {'share_id': 'bad', 'user_ids': None}],
+            'fulcra_file_share': [{'name': 'x', 'path': '', 'user_ids': ['owner']}, {'name': 'x', 'path': '/', 'user_ids': []}],
+            'fulcra_data_type_lifecycle': [{'data_type': 'NumericAnnotation/01234567-89ab-cdef-0123-456789abcdef', 'action': 'typo'}],
             'fulcra_get_records': [{'data_type': 'HeartRate'}, {'data_type': 'HeartRate', 'start_time': '2026-01-01', 'end_time': '2026-01-02'}],
-            'fulcra_record': [{'data_type': 'HeartRate', 'records': [{'value': float('nan')}]}],
         }
         with patch.object(tools, 'client') as factory:
             for name, cases in bad.items():

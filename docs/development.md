@@ -1,6 +1,6 @@
 # Development
 
-Python 3.11+, `jsonschema>=4.23,<5`. No SDK install, CLI, uv, pandas, numpy, pyarrow
+Python 3.11+, `jsonschema>=4.23,<5` solely for upstream record validation. No SDK install, CLI, uv, pandas, numpy, pyarrow
 or dateparser at runtime. See [_vendor provenance](../_vendor/PROVENANCE.md).
 
     python -m unittest discover -s tests -v
@@ -31,7 +31,16 @@ real middleware, transport response normalization and slash dispatch remain in u
 
 `_vendor` is a reproducible minimal upstream extraction. `client.py` owns shared
 credential storage and finite socket timeouts; `tools.py` owns explicit schemas,
-validation and native record/share/file adapters. Workflow modules consume structured
+targeted safety checks and native record/share/file adapters. Tool schemas guide
+callers; they are not a blanket argument-validation gate. Ordinary validation is
+left to the API. Upstream record validation remains mandatory because ingestion
+is asynchronous. Local checks protect action/routing semantics, explicit deletion
+and sharing scope, and local-file safety. Record-query times must be converted to
+timezone-aware datetimes for upstream query construction; reversed bounds must
+not silently become a one-second query. Share timestamps use upstream handling,
+without duplicate plugin checks. API validation diagnostics expose only known
+location/type vocabulary, never free text, input values, response bodies or URLs.
+Workflow modules consume structured
 Python values directly. No CLI argument builders or arbitrary method-invocation tool.
 Registration has no remote I/O, writes, workers or auth flows.
 

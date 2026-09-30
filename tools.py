@@ -7,8 +7,6 @@ from datetime import datetime
 from pathlib import Path
 from urllib.error import HTTPError
 
-import jsonschema
-
 from .client import client, auth_start, auth_finish
 from ._vendor.records import get_records
 from .output import _bounded_output
@@ -38,13 +36,50 @@ def _enum(*values):
 def _error_text(exc, device_code=None):
     # Never interpolate network errors, bodies, URLs, credentials or payloads.
     if isinstance(exc, HTTPError):
-        return f'Error: Fulcra HTTP {exc.code}; writes may have completed. Verify before retrying.'
+        detail = _validation_feedback(exc) if exc.code in (400, 422) else ''
+        return f'Error: Fulcra HTTP {exc.code}{detail}; writes may have completed. Verify before retrying.'
     if isinstance(exc, LocalError):
         text = str(exc)
         if device_code:
             text = text.replace(device_code, '[redacted]')
         return 'Error: ' + text
     return 'Error: ' + type(exc).__name__ + ': outcome uncertain; verify writes before retrying.'
+
+
+def _validation_feedback(exc):
+    # Even loc/type may contain private values (e.g. dictionary keys). Only emit
+    # known schema vocabulary, never msg/input/ctx or arbitrary server strings.
+    fields = {'body', 'query', 'path', 'header', 'datashare_name', 'allowed_user_ids',
+              'allowed_group_ids', 'share_all_data', 'time_start', 'time_end',
+              'fulcra_data_types', 'fulcra_userid', 'annotation_type', 'measurement_spec'}
+    fields.update(k for schema in TOOL_SCHEMAS.values() for k in schema['parameters']['properties'])
+    kinds = {'missing', 'extra_forbidden', 'string_type', 'string_too_short', 'string_too_long',
+             'string_pattern_mismatch', 'int_type', 'int_parsing', 'float_type', 'float_parsing',
+             'bool_type', 'bool_parsing', 'list_type', 'dict_type', 'uuid_parsing', 'uuid_type',
+             'datetime_parsing', 'datetime_type', 'enum', 'literal_error', 'value_error',
+             'greater_than', 'greater_than_equal', 'less_than', 'less_than_equal', 'finite_number'}
+    try:
+        with exc:
+            raw = exc.read(65537)
+        if len(raw) > 65536:
+            return ''
+        body = json.loads(raw)
+        details = body.get('detail') if isinstance(body, dict) else None
+        if not isinstance(details, list):
+            return ''
+        messages = []
+        for item in details[:8]:
+            if not isinstance(item, dict):
+                continue
+            loc, kind = item.get('loc'), item.get('type')
+            if not isinstance(loc, list) or not isinstance(kind, str):
+                continue
+            location = '.'.join(part if isinstance(part, str) and part in fields else '?'
+                                for part in loc[:8])
+            messages.append(f'{location or "?"}: {kind if kind in kinds else "validation_error"}')
+        return ' (validation: ' + '; '.join(messages) + ')' if messages else ''
+    except Exception:
+        return ''
 
 
 def _tool(name, description, properties, required=()):
@@ -55,11 +90,6 @@ def _tool(name, description, properties, required=()):
         @functools.wraps(fn)
         def wrapped(args, **kwargs):
             try:
-                try:
-                    jsonschema.validate(args, schema['parameters'])
-                    json.dumps(args, allow_nan=False)
-                except (jsonschema.ValidationError, ValueError):
-                    raise LocalError('Invalid arguments; follow the tool schema.') from None
                 value = fn(args)
                 output = value if isinstance(value, str) else json.dumps(value, ensure_ascii=False, allow_nan=False)
                 if name.startswith('fulcra_auth') and len(output.encode()) > 16000:
@@ -103,10 +133,11 @@ def resolve(api, data_type, api_version=None, user_id=None, *, write=False):
 
 
 def records(api, data_type, start_time=None, end_time=None, user_id=None, api_version=None, latest=False, group_id=None, participant_id=None):
-    if bool(group_id) != bool(participant_id) or (group_id and user_id):
+    grouped = group_id is not None
+    if grouped != (participant_id is not None) or (grouped and user_id is not None):
         raise LocalError('Use user_id OR group_id and participant_id together.')
     entry = resolve(api, data_type, api_version, user_id)
-    source = api.group_participant(group_id, participant_id) if group_id else api
+    source = api.group_participant(group_id, participant_id) if grouped else api
     return get_records(source, entry, start_time, end_time, latest=latest)
 
 
@@ -153,9 +184,10 @@ def fulcra_data_type_schema(args):
 def fulcra_create_data_type(args):
     args = dict(args)
     kind = args.pop('base_type').removesuffix('Annotation').lower()
-    if (kind == 'scale') != ('scale_labels' in args):
-        raise LocalError('Only ScaleAnnotation requires five scale_labels.')
-    if 'value' in args and not ((kind == 'boolean' and type(args['value']) is bool) or (kind == 'numeric' and type(args['value']) in (int, float))):
+    # Upstream drops these fields for other kinds rather than sending them.
+    if 'scale_labels' in args and kind != 'scale':
+        raise LocalError('scale_labels applies only to ScaleAnnotation.')
+    if 'value' in args and kind not in ('boolean', 'numeric'):
         raise LocalError('value is only supported for boolean/numeric types.')
     if 'unit' in args and kind != 'numeric':
         raise LocalError('unit applies only to NumericAnnotation.')
@@ -164,8 +196,10 @@ def fulcra_create_data_type(args):
 
 @_tool('fulcra_data_type_lifecycle', 'Archive/restore an explicit user annotation type, not its records.', {'data_type': DATA_TYPE, 'action': _enum('archive', 'restore')}, ('data_type', 'action'))
 def fulcra_data_type_lifecycle(args):
+    if args['action'] not in ('archive', 'restore'):
+        raise LocalError('Choose archive or restore.')
     base, _, identifier = args['data_type'].partition('/')
-    if base not in BASE_TYPES or not identifier:
+    if base not in BASE_TYPES or not re.fullmatch(UUID_PATTERN, identifier):
         raise LocalError('Use the full BaseAnnotation/UUID ID.')
     api = client()
     return api.delete_annotation(identifier) if args['action'] == 'archive' else api.restore_annotation(identifier)
@@ -174,6 +208,8 @@ def fulcra_data_type_lifecycle(args):
 @_tool('fulcra_get_records', 'Read raw records. Supply timezone-aware start_time/end_time OR latest=true (v1 only). Raw sources can overlap; do not sum blindly. Check shared types before another owner query.', {'data_type': DATA_TYPE, **TIMES, 'latest': BOOLEAN, 'api_version': STRING, 'user_id': UUID, 'group_id': UUID, 'participant_id': UUID}, ('data_type',))
 def fulcra_get_records(args):
     args = dict(args)
+    if 'latest' in args and type(args['latest']) is not bool:
+        raise LocalError('latest must be an explicit boolean.')
     if args.get('latest'):
         if any(k in args for k in TIMES):
             raise LocalError('latest conflicts with time bounds.')
@@ -191,12 +227,14 @@ def fulcra_record(args):
 
 @_tool('fulcra_delete_records', 'Delete only explicit record UUIDs. No all-record/time-range deletion. Tombstone acceptance is asynchronous; verify afterward.', {'data_type': DATA_TYPE, 'record_ids': _array(UUID), 'api_version': STRING}, ('data_type', 'record_ids'))
 def fulcra_delete_records(args):
+    ids = args['record_ids']
+    if not isinstance(ids, list) or not ids or any(not isinstance(i, str) or not re.fullmatch(UUID_PATTERN, i) for i in ids):
+        raise LocalError('Supply a nonempty list of explicit record UUIDs.')
     return record(client(), args['data_type'], [{'record_id': i} for i in args['record_ids']], args.get('api_version'), deletion=True)
 
 
 @_tool('fulcra_data_updates', 'Read processing-time updates, not event-time records.', {**TIMES, 'user_id': UUID}, tuple(TIMES))
 def fulcra_data_updates(args):
-    window(args)
     return client().data_updates(args['start_time'], args['end_time'], args.get('user_id'))
 
 
@@ -206,12 +244,18 @@ SHARE_TIMES = {k: {'type': ['string', 'null']} for k in TIMES}
 
 
 def share_fields(args):
+    # Scope containers must not become truthy flags, character-wise recipients,
+    # or null clears. Identifier spelling and ordinary values belong to the API.
+    if 'share_all' in args and type(args['share_all']) is not bool:
+        raise LocalError('share_all must be an explicit boolean.')
+    for key in (*SELECTORS, *RECIPIENTS):
+        if key in args and (not isinstance(args[key], list) or any(not isinstance(v, str) or not v for v in args[key])):
+            raise LocalError('Selectors and recipients must be explicit lists of nonempty strings.')
+    if any(not p.startswith('/') or '\x00' in p for p in args.get('files', [])):
+        raise LocalError('File selectors must be explicit absolute paths or prefixes.')
+    if any(t.startswith('file:') for t in args.get('data_types', [])):
+        raise LocalError('Use files for file selectors, not data_types.')
     fields = { {'name': 'datashare_name', 'user_ids': 'allowed_user_ids', 'group_ids': 'allowed_group_ids', 'share_all': 'share_all_data', 'start_time': 'time_start', 'end_time': 'time_end'}[k]: v for k, v in args.items() if k in {'name', 'user_ids', 'group_ids', 'share_all', *TIMES}}
-    for key in TIMES:
-        if args.get(key) is not None:
-            _timestamp(args[key])
-    if all(args.get(k) is not None for k in TIMES):
-        window(args)
     if 'data_types' in args or 'files' in args:
         # Replacements are atomic and deliberately complete; no read/modify/write races.
         if not all(k in args for k in SELECTORS):
@@ -225,6 +269,10 @@ def share_fields(args):
 
 @_tool('fulcra_create_share', 'Grant explicit recipients explicit data_types/files OR share_all=true. Group membership is live. File prefixes include future files; / is all files, latest versions only. Time bounds NEVER constrain files. Missing bounds are open. Verify outgoing shares.', {'name': STRING, **SELECTORS, **RECIPIENTS, 'share_all': BOOLEAN, **SHARE_TIMES}, ('name',))
 def fulcra_create_share(args):
+    return create_share(args)
+
+
+def create_share(args):
     if not (args.get('user_ids') or args.get('group_ids')):
         raise LocalError('Explicit recipients required.')
     scoped = bool(args.get('data_types') or args.get('files'))
@@ -277,7 +325,6 @@ def fulcra_leave_share(args):
 
 @_tool('fulcra_shared_data_types', 'Check access before reading shared records. all_data_types=true with empty types means everything. Window must be strictly inside share end. Files are not listed.', {'user_id': UUID, **TIMES}, ('user_id', *TIMES))
 def fulcra_shared_data_types(args):
-    window(args)
     return client().list_shared_data_types(args['user_id'], args['start_time'], args['end_time'])
 
 
@@ -338,4 +385,4 @@ def fulcra_file_restore(args):
 
 @_tool('fulcra_file_share', 'Share explicit file path/prefix with explicit users. Includes future files, latest only; / is all files. No time restriction on files. Verify outgoing shares.', {'path': REMOTE_PATH, 'user_ids': _array(UUID), 'name': STRING}, ('path', 'user_ids', 'name'))
 def fulcra_file_share(args):
-    return client().create_datashare(args['name'], ['file:' + args['path']], args['user_ids'], share_all_data=False, allowed_group_ids=[])
+    return create_share({'name': args['name'], 'files': [args['path']], 'user_ids': args['user_ids']})
