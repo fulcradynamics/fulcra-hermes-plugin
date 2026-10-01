@@ -7,6 +7,7 @@ import threading
 import time
 
 from . import tools
+from .settings import get as get_setting
 from .client import MissingFile
 
 SEGMENT = r'^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$'
@@ -106,15 +107,15 @@ class Workspace:
         """Load context.md on enabled first turns; discovery lives in plugin_setup."""
         if not session_id or parent_session_id or platform == 'cron':
             return
-        enabled = self.ctx.get_config('workspace_context_enabled', False)
+        enabled = get_setting(self.ctx, 'workspace_context_enabled', False)
         if enabled is not True or is_first_turn is not True:
             return
-        settings = {key: self.ctx.get_config(key, spec['default']) for key, spec in SETTINGS.items()}
+        settings = {key: get_setting(self.ctx, key, spec['default']) for key, spec in SETTINGS.items()}
         if settings['workspace_context_enabled'] is not True:
             return
         name, role = settings['workspace_name'], settings['workspace_role']
         if any(not isinstance(value, str) or not re.fullmatch(SEGMENT, value) for value in (name, role)):
-            return {'context': 'Fulcra workspace unavailable: set workspace_name and workspace_role to single alphanumeric, hyphen or underscore segments (1–64 characters).'}
+            return {'context': 'Fulcra workspace unavailable: set workspace-name and workspace-role to single alphanumeric, hyphen or underscore segments (1–64 characters).'}
         profile = str(self.ctx.state.path)
         with _GUARD:
             key = (profile, session_id)

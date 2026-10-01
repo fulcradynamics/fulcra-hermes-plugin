@@ -74,7 +74,7 @@ class SetupMeshTests(unittest.TestCase):
         self.ctx.set_config('updates_data_types', ['Steps'])
         text = self.setup.command('setup --workspace off --updates on --interval 120 --mesh-invites on')
         self.assertIn('120', text)
-        self.assertIs(self.ctx.get_config('workspace_context_enabled'), False)
+        self.assertIs(self.ctx.get_config('workspace'), False)
         self.assertEqual(self.ctx.get_config('updates_data_types'), ['Steps'])
         before = self.ctx.config.copy()
         for text in ('setup --workspace on --interval 1', 'setup --mesh-messages on',
@@ -86,7 +86,7 @@ class SetupMeshTests(unittest.TestCase):
         parser = argparse.ArgumentParser()
         self.setup.cli_setup(parser)
         self.setup.cli(parser.parse_args(['setup', '--mesh-agent', 'helper', '--mesh-messages', 'on']))
-        self.assertIs(self.ctx.get_config('mesh_messages_enabled'), True)
+        self.assertIs(self.ctx.get_config('mesh-messages'), True)
         self.assertIn('helper', self.setup.command('status'))
 
     def test_discovery_once_no_config_writes_and_native_choices(self):
@@ -245,7 +245,7 @@ class SetupMeshTests(unittest.TestCase):
         self.assertIn('preview', text)
         self.assertIsNone(self.watcher.pre(session_id='other'))
         self.assertIsNone(self.ctx.state.get(self.plugin.mesh.STATE_KEY))
-        self.ctx.set_config('mesh_agent', '\ninvalid')
+        self.ctx.set_config('mesh-agent', '\ninvalid')
         self.assertIsNone(self.watcher.pre(session_id='chat'))
-        self.ctx.set_config('mesh_agent', 'helper')
+        self.ctx.set_config('mesh-agent', 'helper')
         self.assertIsNone(self.watcher.pre(session_id='chat'))

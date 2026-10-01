@@ -43,7 +43,15 @@ def main():
         stores = {'a': FileStore(), 'b': FileStore()}
         manifest = yaml.safe_load((Path(__file__).resolve().parents[1] / 'plugin.yaml').read_text())
         assert {k: {f: v for f, v in spec.items() if f != 'label'}
-                for k, spec in manifest['config_schema'].items()} == plugin.plugin_setup.SETTINGS
+                for k, spec in manifest['config_schema'].items()} == {
+                    plugin.settings.NAMES[k]: spec for k, spec in plugin.plugin_setup.SETTINGS.items()}
+        parser = argparse.ArgumentParser()
+        plugin.plugin_setup.arguments(parser)
+        options = {flag[2:] for action in parser._actions for flag in action.option_strings
+                   if flag.startswith('--') and flag not in ('--help', '--migrate')}
+        assert options == manifest['config_schema'].keys()
+        assert list(manifest['config_schema']) == [plugin.settings.NAMES[k]
+            for _, keys in plugin.plugin_setup.GROUPS for k in keys]
         mesh_seen = []
         mesh_mid = [MID]
 
@@ -127,9 +135,9 @@ def main():
                     assert sorted(home.rglob('*')) == before, 'register wrote persistent data'
                     assert configure({})['updates_enabled'] is False
                     configure({'updates_enabled': True, 'update_interval': 60})
-                    assert ctx.get_config('updates_enabled') is True
-                    assert ctx.get_config('update_interval') == 60
-                    assert yaml.safe_load((home / 'config.yaml').read_text())['plugins']['entries']['context']['settings']['updates_enabled'] is True
+                    assert ctx.get_config('updates') is True
+                    assert ctx.get_config('interval') == 60
+                    assert yaml.safe_load((home / 'config.yaml').read_text())['plugins']['entries']['context']['settings']['updates'] is True
                     unset = object()
                     assert ctx.get_config('workspace_context_enabled', unset) is unset
                     assert not pre('offer-cron', platform='cron', first=True)
@@ -152,22 +160,26 @@ def main():
                     assert 'Mesh' in slash('setup')
                     assert '--mesh-messages' in slash('setup --help')
                     assert slash('setup --updates off --interval 1').startswith('Error:')
-                    assert ctx.get_config('updates_enabled') is True
+                    assert ctx.get_config('updates') is True
                     assert slash('setup --mesh-messages on').startswith('Error:')
                     assert 'helper' in slash('setup --mesh-agent helper --mesh-messages on')
                     command = manager._cli_commands['fulcra']
                     parser = argparse.ArgumentParser()
                     command['setup_fn'](parser)
                     command['handler_fn'](parser.parse_args(['setup', '--mesh-invites', 'on']))
-                    assert ctx.get_config('mesh_invites_enabled') is True
+                    assert ctx.get_config('mesh-invites') is True
                     fields = {f['key']: f for f in plugin_settings_fields('context', Path(ctx.manifest.path))}
-                    assert fields.keys() == plugin.plugin_setup.SETTINGS.keys()
-                    assert fields['mesh_messages_enabled']['value'] is True
-                    assert fields['mesh_agent']['type'] == 'string'
-                    assert fields['update_interval']['type'] == 'number'
+                    assert fields.keys() == manifest['config_schema'].keys()
+                    assert fields['mesh-messages']['value'] is True
+                    assert fields['mesh-agent']['type'] == 'string'
+                    assert fields['interval']['type'] == 'number'
                     assert all(f['label'] != k and f['description'] for k, f in fields.items())
-                    save_plugin_settings('context', Path(ctx.manifest.path), {'workspace_context_enabled': False})
-                    assert ctx.get_config('workspace_context_enabled') is False
+                    save_plugin_settings('context', Path(ctx.manifest.path), {'workspace': False})
+                    assert ctx.get_config('workspace') is False
+                    ctx.set_config('updates_data_types', [name + '-type'])
+                    assert not slash('setup --migrate').startswith('Error:')
+                    fields = {f['key']: f for f in plugin_settings_fields('context', Path(ctx.manifest.path))}
+                    assert fields['updates-data-types']['value'] == [name + '-type']
                     assert 'false' in slash('status')
                     assert not pre('setup-handled', first=True)
                     invoke_hook('post_llm_call', session_id='child', platform='cli', conversation_history=[])
@@ -206,11 +218,11 @@ def main():
                 with scope(name) as home:
                     ctx = contexts[name]
                     # Intentional standard config writes, isolated to disposable homes.
-                    ctx.set_config('workspace_name', 'work-' + name)
-                    ctx.set_config('workspace_role', 'researcher')
-                    ctx.set_config('workspace_context_enabled', True)
+                    ctx.set_config('workspace-name', 'work-' + name)
+                    ctx.set_config('workspace-role', 'researcher')
+                    ctx.set_config('workspace', True)
                     saved = yaml.safe_load((home / 'config.yaml').read_text())
-                    assert saved['plugins']['entries']['context']['settings']['workspace_name'] == 'work-' + name
+                    assert saved['plugins']['entries']['context']['settings']['workspace-name'] == 'work-' + name
                     count = len(stores[name].calls)
                     assert not pre('workspace-cron', platform='cron', first=True)
                     assert not pre('workspace-child', parent='parent', first=True)
@@ -241,7 +253,7 @@ def main():
                         assert path in text and 'UNTRUSTED DATA' in text
                         assert len(stores[name].calls) == count + 2
                     assert not any(path.exists() for path in stores[name].locals)
-                    ctx.set_config('workspace_context_enabled', False)
+                    ctx.set_config('workspace', False)
                     assert not pre('workspace-disabled', first=True)
             with scope('a'):
                 ctx = contexts['a']

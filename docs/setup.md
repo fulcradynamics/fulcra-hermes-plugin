@@ -1,4 +1,4 @@
-# Fulcra setup (PLAT-470)
+# Fulcra setup
 
 ## Optional local redaction (PLAT-480)
 
@@ -23,8 +23,12 @@ with the OS-user Fulcra account; profile isolation is not account isolation.
 
 The canonical form is **Desktop → Capabilities → Plugins → Context**. Its fields
 come from `plugin.yaml`'s `config_schema`, under
-`plugins.entries.context.settings`. Labels prefix the logical groups below;
-the current Hermes renderer need not render separate group sections.
+`plugins.entries.context.settings`. Keys exactly match setup flags without `--`.
+Feature switches come first, then workspace details, the shared interval, mesh
+identity and update filters. Labels prefix those groups; the current Hermes
+renderer need not render separate group sections. Changing a detail never enables
+its feature. On upgrade, run `hermes fulcra setup --migrate` **before opening the
+native form**; see compatibility below.
 
 In a chat, `/fulcra setup` shows current values and choices without enabling
 anything. `/fulcra status` and `/fulcra help` are read-only settings views.
@@ -79,30 +83,62 @@ Cron, child and sessionless turns also cannot consume automatic notifications.
 
 ## Settings and runtime consumers
 
-Every key below is declared in the manifest, with a label and description.
+Every key below is declared in the manifest and accepts an identically named
+setup flag. Booleans use `on`/`off` in setup and `true`/`false` in stored settings.
 
 | Logical group | Setting | Default | Consumer / effect |
 | --- | --- | --- | --- |
-| Workspace | `workspace_context_enabled` | `false` | First-turn `context.md` loading; missing-only bootstrap |
-| Workspace | `workspace_name` | `general` | Remote `/workspace/<name>` namespace |
-| Workspace | `workspace_role` | `assistant` | Durable `member/<role>` bootstrap responsibility |
-| Updates | `updates_enabled` | `false` | Turn-triggered `data-updates` (what's new) digest |
-| Shared checks | `update_interval` | `900` | Minimum seconds between attempts for each of updates and mesh, 60–86400 |
-| Updates | `updates_data_types` | `[]` | Exact type allowlist; empty means all |
-| Updates | `updates_include_files` | `true` | Include file change metadata |
-| Updates | `updates_file_prefixes` | `[]` | Literal path prefix allowlist; empty means all |
-| Updates | `updates_ignore_prefixes` | `[]` | Exclusions override includes |
-| Mesh | `mesh_messages_enabled` | `false` | Read peer records for exact own userid + `mesh_agent` |
-| Mesh | `mesh_invites_enabled` | `false` | List incoming narrow share candidates, without reading peer records when messages are off |
-| Mesh | `mesh_agent` | `""` | Exact canonical `local_agent`, required when message checks are enabled |
+| Features | `workspace` | `false` | First-turn `context.md` loading; missing-only bootstrap |
+| Features | `updates` | `false` | Turn-triggered what's-new digest |
+| Features | `mesh-messages` | `false` | Read peer records for own userid + `mesh-agent` |
+| Features | `mesh-invites` | `false` | Notice narrow incoming share candidates; no automatic acceptance |
+| Workspace | `workspace-name` | `general` | Remote `/workspace/<name>` namespace |
+| Workspace | `workspace-role` | `assistant` | Durable `member/<role>` bootstrap responsibility |
+| Shared checks | `interval` | `900` | Minimum seconds between attempts for each of updates and mesh, 60–86400 |
+| Mesh | `mesh-agent` | `""` | Exact canonical `local_agent`, required when message checks are enabled |
+| Update filters | `updates-data-types` | `[]` | Exact type allowlist; empty means all |
+| Update filters | `updates-include-files` | `true` | Include file change metadata |
+| Update filters | `updates-file-prefixes` | `[]` | Literal path prefix allowlist; empty means all |
+| Update filters | `updates-ignore-prefixes` | `[]` | Exclusions override includes |
+
+The filters are optional: retain defaults unless you want to narrow noisy notices.
+List flags replace the complete list, accept space-separated values (quote values
+containing spaces), and clear it when supplied without values. Omitted flags
+preserve existing choices. For example:
+
+```text
+/fulcra setup --updates-data-types Steps HeartRate --updates-file-prefixes /workspace/ --updates-ignore-prefixes /workspace/scratch/
+/fulcra setup --updates-data-types --updates-ignore-prefixes
+```
+
+### Upgrading saved settings
+
+Older underscore keys remain readable by runtime hooks and setup/status. New
+keys take precedence, including explicit `false` and empty lists. Nothing is
+rewritten at import, registration or read-only status. To copy only existing
+legacy choices into their new names, run:
+
+```text
+/fulcra setup --migrate
+```
+
+Or use `hermes fulcra setup --migrate`. Explicit flags in the same command win;
+unspecified features are not enabled. Migration is repeatable and leaves old keys
+intact, but subsequent edits must use the new names. The native Hermes form does
+not interpret legacy aliases, so migrate before using it to avoid displaying
+defaults for unmigrated choices. Status warns when legacy-only choices remain.
+To roll back the plugin, restore a config backup or copy the current choices back
+to the old keys; the retained old keys are not kept in sync.
+
+The existing `fulcra_configure_updates` model tool retains its underscore-shaped
+arguments and response for compatibility, but writes the same new settings.
 
 Workspace names/roles are single ASCII path segments (1–64 characters, initially
 alphanumeric, then alphanumeric/hyphen/underscore). Agent names are strings of at
 most 128 characters, without ASCII control characters, nonblank for message reads.
 The native renderer currently enforces types, not every range or cross-field rule;
 set the agent name before enabling messages. Runtime readers fail closed on invalid
-settings. Use the form or existing `fulcra_configure_updates` tool for advanced
-update interests; the compatibility tool continues working unchanged. The shared
+settings. Use setup flags or the form for update filters. The shared
 interval deliberately avoids a second cadence knob; independent workers have
 independent cooldowns, so enabling mesh never requires enabling updates.
 
