@@ -149,8 +149,8 @@ class MeshUpdates:
         deadline = time.monotonic() + 30
         own = None
 
-        def cli(argv):
-            """Enforce the deadline, consent epoch and account identity on CLI reads."""
+        def api():
+            """Check deadline and consent before creating a native request client."""
             # No network under the lock; stop between requests after observed consent changes.
             with updates._lock(self.ctx):
                 if sync(self.ctx)['epoch'] != snapshot['epoch']:
@@ -158,18 +158,21 @@ class MeshUpdates:
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 raise TimeoutError('Mesh check deadline')
-            raw = tools._run_cli(argv, timeout=remaining)
-            if argv == ['user-info'] and own is not None and json.loads(raw).get('userid') != own:
+            return tools.client(timeout=remaining)
+
+        def check_account():
+            current_own = mesh._userid(api)
+            if own is not None and current_own != own:
                 with updates._lock(self.ctx):
                     current = sync(self.ctx)
                     if current['epoch'] == snapshot['epoch']:
                         current['epoch'] = uuid.uuid4().hex
                         _reset_account(self.ctx, current, None)
                 raise RuntimeError('Account changed during mesh check')
-            return raw
+            return current_own
 
         try:
-            own = mesh._userid(cli)
+            own = check_account()
             with updates._lock(self.ctx):
                 current = sync(self.ctx)
                 if current['epoch'] != snapshot['epoch']:
@@ -178,7 +181,7 @@ class MeshUpdates:
                     _reset_account(self.ctx, current, own)
                     snapshot = copy.deepcopy(current)
             cfg = snapshot['settings']
-            shares = _candidates(mesh._rows(cli(['share', 'list-incoming'])), own)
+            shares = _candidates(api().get_shared_datasets(), own)
             notices, seen = [], dict.fromkeys(snapshot['invites'])
             if cfg['mesh_invites_enabled']:
                 for share in shares:
@@ -199,15 +202,14 @@ class MeshUpdates:
             if cfg['mesh_messages_enabled']:
                 rotated = shares[offset:] + shares[:offset]
                 result = mesh._receive({'local_agent': cfg['mesh_agent']}, own, data,
-                                       cli=cli, shares=rotated[:8])
+                                       api=api, shares=rotated[:8])
                 offset = (offset + 8) % len(shares) if shares else 0
                 for message in result['messages']:
                     env = message['envelope']
                     notices.append({'kind': 'message', 'owner': message['origin_userid'],
                                     'channel': message['channel'], 'mid': env['mid'],
                                     'preview': env['body'][:80]})
-            elif mesh._userid(cli) != own:
-                raise RuntimeError('Account changed during check')
+            check_account()
             with updates._lock(self.ctx):
                 current = sync(self.ctx)
                 if current['epoch'] != snapshot['epoch'] or current['account'] != own:

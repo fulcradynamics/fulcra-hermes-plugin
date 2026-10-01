@@ -2,5 +2,5 @@
 name = "fulcra-hermes-plugin"
 version = "1.0.0"
 requires-python = ">=3.11"
-# The host adapter uses only the standard library; uv owns the Fulcra runtime.
-dependencies = []
+# Upstream record/schema validation; HTTP and credentials use the standard library.
+dependencies = ["jsonschema>=4.23,<5"]

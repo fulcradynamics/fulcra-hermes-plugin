@@ -110,16 +110,16 @@ independent cooldowns, so enabling mesh never requires enabling updates.
 
 `post_llm_call` launches a due daemon worker without waiting. It carries the
 active profile/secret context using `contextvars.copy_context()` and spends one
-30-second deadline across pinned CLI calls. `pre_llm_call` only consumes cached
+30-second deadline across native API calls. `pre_llm_call` only consumes cached
 compact notifications; it never performs mesh network work. There is **no idle
 timer**: checks need eligible turns and notifications need a later turn. Updates
 baseline at current time; mesh initially checks the canonical recent seven days,
 then uses its own cursor with a ten-minute overlap and 2,048-mid dedup per channel.
 First invitation checking may offer already-existing candidates once.
 
-The worker reuses canonical `mesh._receive`, channel validation, JSONL parsing,
+The worker reuses canonical `mesh._receive`, channel validation,
 narrow-share selection, envelope validation and addressing, injecting a bounded
-CLI callable rather than patching shared module globals. It never parses the
+native client factory rather than patching shared module globals. It never parses the
 public tool's potentially truncated response. Manual `mesh.v1` state is untouched;
 automatic cursors live separately in `mesh-notifications.v1`, so manual receive
 can still retrieve full messages. Previews retain up to 80 body characters, plus
@@ -144,24 +144,24 @@ items in fewer than 3,000 characters; escaped previews count against that budget
 Overflow is omitted, not retried as a delivery queue. Removed/re-added channels,
 config resets and dedup eviction may replay recent history. A failing cycle
 commits no new cursors or dedup markers and retains the last-attempt cooldown;
-slow or inaccessible channels can delay the batch. Full CLI responses are parsed
-in memory (as with manual receive); these are not subprocess memory quotas.
+slow or inaccessible channels can delay the batch. Full API responses are parsed
+in memory (as with manual receive); output bounds are not memory quotas.
 
 State is durable and shared across eligible sessions in the active profile.
 Transactions use a per-profile, process-local lock, with no network under it.
 Completion merges into fresh state so turns consuming pending items aren't
 undone. Disabling either mesh flag or changing the agent invalidates pending and
-in-flight mesh work, resets its automatic history, and preserves cooldown. A CLI
-already running may finish; results from an invalidated epoch cannot be queued.
+in-flight mesh work, resets its automatic history, and preserves cooldown. An API
+request already running may finish; results from an invalidated epoch cannot be queued.
 Direct UI changes are noticed on the next hook/worker check; an off/on toggle
 entirely between observations is not detectable. Do not run multiple polling
 Hermes processes on the same profile; this is not a distributed lease.
 
-The CLI login is OS-user shared. Observed account changes during mesh polling
+The Fulcra login is OS-user shared. Observed account changes during mesh polling
 clear/reinitialize its cache and invalidate update digests/workers too. A pre hook
 cannot observe an external login change without network, and updates alone do
 not query account identity. **Before switching the external Fulcra login, disable
-updates and both mesh checks in every affected active profile, let existing CLI
+updates and both mesh checks in every affected active profile, let existing API
 calls finish, switch login, then re-enable the intended choices before resuming
 trusted chats.** No cross-profile cache or discovery marker is shared. Stored
 previews, IDs and paths are sensitive profile data; do not publicly back them up.

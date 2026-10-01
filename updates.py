@@ -70,12 +70,12 @@ def _validate_settings(values):
 
 
 def _iso(stamp):
-    """Format an explicit UTC window boundary for the CLI."""
+    """Format an explicit UTC window boundary for the API."""
     return datetime.fromtimestamp(stamp, timezone.utc).isoformat()
 
 
 def _stamp(value):
-    """Compare CLI timestamps by instant, not formatting."""
+    """Compare API timestamps by instant, not formatting."""
     parsed = datetime.fromisoformat(value)
     if parsed.tzinfo is None:
         raise ValueError('Update timestamps must have a timezone')
@@ -105,8 +105,8 @@ def _profile_state(ctx, key, control, now):
 
 
 def _events(raw, start, end):
-    """Validate the pinned CLI response before committing its entire window."""
-    data = json.loads(raw)
+    """Validate the pinned API response before committing its entire window."""
+    data = raw
     if not isinstance(data, dict) or _stamp(data['start_time']) != _stamp(start) or _stamp(data['end_time']) != _stamp(end):
         raise ValueError('Unexpected update window')
     types, files = data['data_types'], data['file_changes']
@@ -203,7 +203,7 @@ class Updates:
                     return {'context': NOTICE + '\n'.join(lines)}
 
     def post(self, session_id='', **kwargs):
-        """Start a bounded due check without waiting for CLI work."""
+        """Start a bounded due check without waiting for API work."""
         if not session_id:
             return
         with _lock(self.ctx):
@@ -234,7 +234,7 @@ class Updates:
     def _fetch(self, scope, snapshot):
         """Fetch outside the lock; merge into fresh state so writes cannot be lost."""
         try:
-            raw = tools._run_cli(['data-updates', snapshot['cursor'], snapshot['window_end']], timeout=30)
+            raw = tools.client(timeout=30).data_updates(snapshot['cursor'], snapshot['window_end'])
             events = _events(raw, snapshot['cursor'], snapshot['window_end'])
             with _lock(self.ctx):
                 settings = _settings(self.ctx)
@@ -264,7 +264,7 @@ class Updates:
                 state.pop('window_end', None)
                 self.ctx.state.set(scope[1], state)
         except Exception:
-            # No raw CLI output or private metadata in logs; next due turn retries.
+            # No raw API output or private metadata in logs; next due turn retries.
             LOG.debug('Fulcra background check failed; retaining cursor', exc_info=False)
         finally:
             with _lock(self.ctx):
@@ -299,11 +299,17 @@ class Updates:
             if prefix == 'path:':
                 value = str(PurePosixPath('/', value))
             state['known'][prefix + value] = horizon
-            if tool_name == 'fulcra_file_restore' and isinstance(result, str) and result.startswith('fulcra:'):
-                # Pinned CLI reports the original path and newly created version.
-                path, marker, _ = result[7:].partition('  ' + value + ' (')
-                if marker:
-                    state['known']['path:' + str(PurePosixPath('/', path))] = horizon
+            if tool_name == 'fulcra_file_restore':
+                try:
+                    restored = json.loads(result) if isinstance(result, str) else result
+                    if isinstance(restored, dict):
+                        if isinstance(restored.get('id'), str):
+                            state['known']['id:' + restored['id']] = horizon
+                        if all(isinstance(restored.get(k), str) for k in ('path', 'name')):
+                            path = str(PurePosixPath('/', restored['path'], restored['name']))
+                            state['known']['path:' + path] = horizon
+                except ValueError:
+                    pass  # Truncated receipts cannot supply extra suppression identifiers.
             self.ctx.state.set(scope[1], state)
 
 

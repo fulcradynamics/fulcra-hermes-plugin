@@ -67,7 +67,7 @@ Replies conventionally append `-ack` to the slug and reference the original mid
 in the body; retractions append `-retracted`. These are conventions, not extra
 fields or recalls. Already shared messages cannot be recalled.
 
-`accepted` means a successful CLI upload, not delivery or peer acceptance.
+`accepted` means a successful API write, not delivery or peer acceptance.
 One immediate read query reports `ingested`, `not_observed`, or `unavailable`;
 even ingestion is not acknowledgement. No polling or sleep. A failed/timeout
 upload returns `uncertain` plus its mid: inspect the outbox using
@@ -96,7 +96,7 @@ Dedup remembers the last **2,048 mids per account/local-agent/owner/channel**.
 Explicit `since` overrides the start, but not dedup. This is not complete history:
 late ingestion older than the overlap can be missed, and evicted mids can recur.
 Remote time-bound shares may reject the requested window; use an authorized
-`since` or inspect the grant. Failed reads or partial/invalid CLI JSONL leave all
+`since` or inspect the grant. Failed reads or invalid responses leave all
 cursors unchanged; malformed/unrelated note strings are counted and ignored.
 
 Large results use the existing private output artifacts. Read the complete file,
@@ -112,10 +112,9 @@ inbox or acknowledgement guarantee. There is no unconditional persistence or que
 under `mesh.v1`, scoped by active Hermes profile and authenticated userid.
 Connections also include both agent names and peer userid. `user-info` is read
 on each operation; only its `userid` is retained or returned, never other fields.
-The pinned CLI has no `auth get-token-claims` command. Account identity is checked
-again before mutations and before receive commits. Do not switch the shared CLI
-login during an operation: separate subprocesses cannot lock external credential
-changes or concurrent remote grant edits. A single in-process lock serializes
+Account identity is checked again before mutations and before receive commits.
+Do not switch the shared login during an operation: external credential changes
+and concurrent remote grant edits cannot be locked. A single in-process lock serializes
 mesh state operations; separate Hermes processes are not coordinated.
 
 ### Explicit adoption and recovery

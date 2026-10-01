@@ -19,7 +19,8 @@ def load_plugin():
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
-    return module
+    from native_fixture import install
+    return install(module)
 
 
 class State:
@@ -86,7 +87,7 @@ class UpdateTests(unittest.TestCase):
         self.calls = []
         self.types = {'Steps': 3}
         self.files = []
-        self.cli = patch.object(self.plugin.tools, '_run_cli', side_effect=self.response)
+        self.cli = patch.object(self.plugin.tools, 'fixture_call', side_effect=self.response)
         self.cli.start()
         self.addCleanup(self.cli.stop)
 
@@ -147,7 +148,7 @@ class UpdateTests(unittest.TestCase):
 
     def test_failure_retries_identical_window_after_cooldown(self):
         self.enable()
-        with patch.object(self.plugin.tools, '_run_cli', return_value='{"data_types": {}}') as failed:
+        with patch.object(self.plugin.tools, 'fixture_call', return_value='{"data_types": {}}') as failed:
             self.poll()
             argv = failed.call_args.args[0]
             self.post(); self.finish()
@@ -194,7 +195,7 @@ class UpdateTests(unittest.TestCase):
             ('fulcra_file_delete', {'path': 'notes/./deleted'}, 'Deleted'),
             ('fulcra_file_delete', {'path': '/notes/failed'}, 'Error: CLI failure'),
             ('fulcra_file_restore', {'version_id': 'old-version'},
-             'fulcra:/notes/restored  old-version (2027-01-15) ➡️ version (2027-01-16)'),
+             '{"path":"/notes", "name":"restored", "id":"version"}'),
             ('fulcra_record', {'data_type': 'Steps'}, 'Submitted'),
         ]:
             hook(session_id='chat', tool_name=name, args=args, result=result, status='ok')
@@ -245,7 +246,7 @@ class UpdateTests(unittest.TestCase):
             return self.response(argv, timeout)
         self.files = [self.file('own')]
         self.types = {}
-        with patch.object(self.plugin.tools, '_run_cli', side_effect=blocked) as run:
+        with patch.object(self.plugin.tools, 'fixture_call', side_effect=blocked) as run:
             self.now += 61
             self.post()
             self.assertTrue(started.wait(1))
@@ -258,7 +259,7 @@ class UpdateTests(unittest.TestCase):
         self.assertIsNone(self.pre())
         started.clear(); release.clear()
         self.files = [self.file('fresh')]
-        with patch.object(self.plugin.tools, '_run_cli', side_effect=blocked):
+        with patch.object(self.plugin.tools, 'fixture_call', side_effect=blocked):
             self.now += 61; self.post()
             self.assertTrue(started.wait(1))
             self.configure(updates_enabled=False)
