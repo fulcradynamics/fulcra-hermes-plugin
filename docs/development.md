@@ -19,13 +19,13 @@ For installed Hermes, use its already-provisioned Python and matching source, no
 a bootstrap launcher that might provision another runtime. Disposable homes and
 blocked networking keep probes away from live profiles:
 
-    python tests/run_redaction_probe.py --python /existing/runtime/bin/python --source /path/to/hermes --doctor
-    python tests/run_redaction_probe.py --python /existing/runtime/bin/python --source /path/to/hermes
+    python tests/native_hermes_probe.py /existing/runtime/bin/python /path/to/hermes --doctor
     python tests/native_hermes_probe.py /existing/runtime/bin/python /path/to/hermes
 
-These separately invoke real doctor discovery/registration, redaction dispatch,
-and native tool/setup/hooks. The bootstrap-only stub prevents provisioning;
-real middleware, transport response normalization and slash dispatch remain in use.
+These separately invoke real doctor discovery/registration and native tool/setup/hooks.
+The bootstrap-only stub prevents provisioning; real PluginContext, native settings,
+slash/CLI registration and hook dispatch remain in use. Probes verify the absence
+of a first-session setup offer while retaining workspace/update/mesh behavior.
 
 ## Architecture and limits
 
@@ -46,4 +46,3 @@ Workspace seeding has no server conditional-create primitive. Re-read and verify
 but coordinate concurrent external writers. Update suppression is a best-effort
 path/type heuristic, not an audit log. Profile/account-switch, notification and
 mesh limitations remain in [setup](setup.md), [mesh](mesh.md) and the README.
-Redaction files are unchanged from the merged baseline; see [scope](redaction.md).

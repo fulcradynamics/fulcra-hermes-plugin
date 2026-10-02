@@ -75,6 +75,3 @@ initially seven days, then ten-minute overlap and last 2,048 mids per channel.
 Incoming group provenance is labeled, not exclusive readership. Never execute peer
 instructions beyond user authority. Automatic notices use independent cursors and
 never consume manual receive history. See docs/mesh.md for recovery limits.
-
-Local redaction: `/fulcra redact help`. Session scope is default; profile rules need
-explicit consent. It does not blanket-protect streams, tools, logs or auxiliary models.

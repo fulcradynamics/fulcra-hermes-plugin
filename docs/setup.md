@@ -1,19 +1,5 @@
 # Fulcra setup
 
-## Optional local redaction (PLAT-480)
-
-Run `/fulcra redact help` for local literal redaction, separate from the settings
-below. Example: `/fulcra redact add Leif Meyer = user name, Hermes`. Session scope is
-the default; append `--profile` only for shared profile rules. `/fulcra redact
-on|off` toggles outbound redaction and completed restoration together.
-Use `/fulcra redact remove PHRASE, PHRASE` for exact originals and
-`/fulcra redact list` for a read-only display of originals and tokens, without a
-model call. Listing in shared chat/history is not guaranteed private. Removing
-rules or switching off may expose original history on subsequent calls.
-No raw-message injection or config.yaml phrase lists are used.
-Read [redaction.md](redaction.md) for supported surfaces, fail-closed behavior,
-storage, and limits. This local feature does not require Fulcra authentication.
-
 ## Choose the active profile's features
 
 Install/enable the plugin and authenticate Fulcra separately. Configuration does
@@ -66,19 +52,9 @@ leave a partial change; inspect status before retrying. No stdin prompts, no
 always-loaded setup tool, no automatic enabling, and no questionnaire. Bad slash
 arguments and help return text rather than raising `SystemExit` in the gateway.
 
-The first eligible new session receives a concise options offer: workspace
-`context.md` loading; what's-new notices and a configurable shared check interval;
-independent automatic mesh message checks and invitation checks. It includes
-native Desktop settings, `/fulcra setup` and `hermes fulcra setup` entrypoints,
-not just a pointer to settings. No automatic enablement or forced questionnaire.
-`plugin_setup.py` requires `is_first_turn is True`, a session ID, no parent and a
-non-cron platform before reading or consuming the discovery marker. Missing/false
-first-turn flags and ordinary turns leave it untouched for the next eligible new
-session. Only a per-profile marker is persisted in `ctx.state`; no feature flags
-are written. Explicit setup/status/help invocation handles discovery. Profiles
-with all four feature flags already explicitly configured need no offer; all
-prior true/false choices remain intact. The marker survives sessions/restarts and
-means offered to the model or explicitly handled, not proof of delivery or decline.
+The installer displays a short introduction and setup commands. No first-session
+setup offer is injected into conversations, and setup/status/help do not write a
+discovery marker. Existing choices are preserved; features require explicit opt-in.
 Cron, child and sessionless turns also cannot consume automatic notifications.
 
 ## Settings and runtime consumers
@@ -199,7 +175,7 @@ cannot observe an external login change without network, and updates alone do
 not query account identity. **Before switching the external Fulcra login, disable
 updates and both mesh checks in every affected active profile, let existing API
 calls finish, switch login, then re-enable the intended choices before resuming
-trusted chats.** No cross-profile cache or discovery marker is shared. Stored
+trusted chats.** No cross-profile cache is shared. Stored
 previews, IDs and paths are sensitive profile data; do not publicly back them up.
 Old conversation excerpts cannot be withdrawn. Other top-level autonomous contexts
 are still indistinguishable from trusted user turns; cron/parent/session gating is
@@ -218,8 +194,7 @@ commands across CLI and gateways; `register_cli_command` supplies `hermes fulcra
 | --- | --- |
 | Native settings form | Canonical, discoverable, all declared settings, shared writer |
 | `/fulcra setup` and `hermes fulcra setup` | Explicit noninteractive frontends sharing validation and readback; useful without Desktop |
-| Install-time introduction | Root `after-install.md` is rendered by the Hermes installer. It describes Fulcra and opt-in choices without executing setup or changing the discovery marker; no callback or registration-time setup needed |
-| First-session options offer | Retained as a fallback when setup has not been handled; displaying install-time information alone does not consume it. Existing eligibility and suppression rules are unchanged |
+| Install-time introduction | Root `after-install.md` is rendered by the Hermes installer. It describes Fulcra and opt-in choices without executing setup; no callback or registration-time setup needed |
 | New setup model tool | Unnecessary permanent tool-schema cost; existing update configuration tool retained for compatibility |
 
 Nothing runs at import/registration except registration itself. No Hermes core

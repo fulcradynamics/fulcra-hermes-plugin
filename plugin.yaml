@@ -103,7 +103,7 @@ config_schema:
     items: {type: string, minLength: 1}
     default: []
     description: Exclude matching literal file prefixes, overriding includes.
-description: Fulcra Context tools and resources for Hermes Agent.
+description: Talk with your friends' agents and know what's new on every loop.
 author:
   name: Fulcra Dynamics
   email: support@fulcradynamics.com
@@ -113,7 +113,8 @@ repository: https://github.com/fulcradynamics/fulcra-hermes-plugin
 license: MIT
 keywords:
   - context
-  - health
+  - mesh
+  - workspace
   - data
   - coordination
   - loop
