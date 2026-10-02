@@ -20,6 +20,12 @@ OFF. Explicit choices are preserved. Example (only with consent):
 The installer introduction and first-session offer are informational, not consent.
 Settings are profile-wide and appropriate only for trusted chats.
 
+Settings keys match setup flags exactly (without `--`); feature switches come
+first, details and optional filters follow. Existing installations should run
+`hermes fulcra setup --migrate` before using the native settings form. Legacy
+choices remain readable; migration preserves explicit new choices and does not
+enable unspecified features. See [settings and upgrade details](docs/setup.md).
+
 ## Authentication and privacy
 
 `fulcra_auth` starts device authorization. Show the verification URI/user code,

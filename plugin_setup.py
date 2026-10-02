@@ -4,16 +4,19 @@ import json
 import re
 import shlex
 
-from . import mesh_updates, redaction, updates, workspace
+from . import mesh_updates, redaction, settings, updates, workspace
 
 SETTINGS = {**workspace.SETTINGS, **updates.SETTINGS, **mesh_updates.SETTINGS}
-FLAGS = {
-    'workspace': 'workspace_context_enabled', 'updates': 'updates_enabled',
-    'interval': 'update_interval', 'mesh-messages': 'mesh_messages_enabled',
-    'mesh-invites': 'mesh_invites_enabled', 'mesh-agent': 'mesh_agent',
-    'workspace-name': 'workspace_name', 'workspace-role': 'workspace_role',
-}
+
 FEATURES = ('workspace_context_enabled', 'updates_enabled', 'mesh_messages_enabled', 'mesh_invites_enabled')
+GROUPS = (
+    ('Features', FEATURES),
+    ('Workspace', ('workspace_name', 'workspace_role')),
+    ('Shared checks', ('update_interval',)),
+    ('Mesh', ('mesh_agent',)),
+    ('Update filters', ('updates_data_types', 'updates_include_files',
+                        'updates_file_prefixes', 'updates_ignore_prefixes')),
+)
 HINT_KEY = 'setup-discovered.v1'  # Offered to the model or explicitly handled, not delivered/declined.
 HINT = ('Briefly offer these Fulcra setup options: workspace context.md loading; what\'s-new notices '
         'and a configurable shared check interval; independent automatic mesh message checks '
@@ -36,14 +39,24 @@ class Parser(argparse.ArgumentParser):
 def arguments(parser):
     """Add the shared slash and native CLI settings arguments."""
     parser.add_argument('action', nargs='?', choices=('setup', 'status', 'help'), default='setup')
-    for flag, key in FLAGS.items():
-        spec = SETTINGS[key]
-        options = {'dest': key, 'default': argparse.SUPPRESS, 'help': spec['description']}
-        if spec['type'] == 'boolean':
-            options['choices'] = ('on', 'off')
-        elif spec['type'] == 'integer':
-            options['type'] = int
-        parser.add_argument('--' + flag, **options)
+    for title, keys in GROUPS:
+        group = parser.add_argument_group(title)
+        for key in keys:
+            spec = SETTINGS[key]
+            options = {'dest': key, 'default': argparse.SUPPRESS, 'help': spec['description']}
+            if spec['type'] == 'boolean':
+                options['choices'] = ('on', 'off')
+            elif spec['type'] == 'integer':
+                options.update(type=int, metavar='SECONDS')
+            elif spec['type'] == 'array':
+                options.update(nargs='*', metavar='VALUE')
+                options['help'] += ' Supply values to replace; no values clears the list.'
+            else:
+                options['metavar'] = 'NAME'
+            group.add_argument('--' + settings.NAMES[key], **options)
+    parser.add_argument_group('Upgrade').add_argument(
+        '--migrate', action='store_true', default=argparse.SUPPRESS,
+        help='Copy saved legacy choices to the new setting names; preserve explicit new values.')
 
 
 class Setup:
@@ -58,7 +71,7 @@ class Setup:
         with updates._lock(self.ctx):
             if self.ctx.state.get(HINT_KEY, False):
                 return
-            if all(type(self.ctx.get_config(k)) is bool for k in FEATURES):
+            if all(type(settings.get(self.ctx, k)) is bool for k in FEATURES):
                 return
             self.ctx.state.set(HINT_KEY, True)
             return {'context': HINT}
@@ -96,7 +109,7 @@ class Setup:
     def cli(self, args):
         """Apply explicit native CLI choices and print their readback."""
         # Only our namespace keys, not Hermes's global parser options.
-        values = {k: v for k, v in vars(args).items() if k in SETTINGS or k == 'action'}
+        values = {k: v for k, v in vars(args).items() if k in SETTINGS or k in ('action', 'migrate')}
         try:
             with updates._lock(self.ctx):
                 self.ctx.state.set(HINT_KEY, True)
@@ -111,23 +124,26 @@ class Setup:
         action = args.pop('action', 'setup')
         if action != 'setup' and args:
             raise ValueError('Only setup accepts settings flags')
-        if not args:
+        migrate = args.pop('migrate', False)
+        if not args and not migrate:
             return self.status()
         changes = {k: (v == 'on' if SETTINGS[k]['type'] == 'boolean' else v) for k, v in args.items()}
         with updates._lock(self.ctx):
-            current = {k: self.ctx.get_config(k, spec['default']) for k, spec in SETTINGS.items()}
+            if migrate:
+                changes = {**settings.legacy(self.ctx), **changes}
+            current = {k: settings.get(self.ctx, k, spec['default']) for k, spec in SETTINGS.items()}
             merged = {**current, **changes}
             # Validate the complete proposed configuration before the first config write.
             updates._validate_settings({k: merged[k] for k in updates.SETTINGS})
             for key in ('workspace_name', 'workspace_role'):
                 if not isinstance(merged[key], str) or not re.fullmatch(workspace.SEGMENT, merged[key]):
-                    raise ValueError(key + ' must be a single alphanumeric, hyphen or underscore segment (1–64 characters)')
+                    raise ValueError(settings.NAMES[key] + ' must be a single alphanumeric, hyphen or underscore segment (1–64 characters)')
             mesh_updates.validate(merged)
             for key in FEATURES:
                 if type(merged[key]) is not bool:
-                    raise ValueError(key + ' must be boolean')
+                    raise ValueError(settings.NAMES[key] + ' must be boolean')
             for key, value in changes.items():
-                self.ctx.set_config(key, value)
+                self.ctx.set_config(settings.NAMES[key], value)
             if changes:
                 mesh_updates.sync(self.ctx)
                 updates._control(self.ctx, updates._settings(self.ctx))
@@ -136,12 +152,13 @@ class Setup:
     def status(self):
         """Show current grouped values and available setup controls."""
         lines = ['Fulcra settings (active profile; trusted chats only):']
-        for group, keys in (('Workspace', workspace.SETTINGS), ('Updates / shared check interval', updates.SETTINGS),
-                            ('Mesh', mesh_updates.SETTINGS)):
+        if settings.legacy(self.ctx):
+            lines.append('Legacy settings are active. Run /fulcra setup --migrate before using the native settings form.')
+        for group, keys in GROUPS:
             lines.append(group + ':')
-            for key, spec in keys.items():
-                value = self.ctx.get_config(key, spec['default'])
-                lines.append('  ' + key + ' = ' + json.dumps(value, ensure_ascii=True))
+            for key in keys:
+                value = settings.get(self.ctx, key, SETTINGS[key]['default'])
+                lines.append('  ' + settings.NAMES[key] + ' = ' + json.dumps(value, ensure_ascii=True))
         lines += ['Use Desktop Capabilities → Plugins, /fulcra setup --help, or hermes fulcra setup --help.',
                   'Choose --workspace on/off --updates on/off --interval 900 --mesh-messages on/off',
                   '       --mesh-invites on/off --mesh-agent NAME. Omitted choices are preserved.',

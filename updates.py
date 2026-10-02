@@ -10,6 +10,7 @@ import time
 import uuid
 
 from . import tools
+from .settings import NAMES, get as get_setting
 
 LOG = logging.getLogger(__name__)
 SETTINGS = {
@@ -49,7 +50,7 @@ def _lock(ctx):
 
 def _settings(ctx):
     """Read current profile settings, failing closed on invalid external edits."""
-    values = {key: ctx.get_config(key, spec['default']) for key, spec in SETTINGS.items()}
+    values = {key: get_setting(ctx, key, spec['default']) for key, spec in SETTINGS.items()}
     _validate_settings(values)
     return values
 
@@ -66,7 +67,7 @@ def _validate_settings(values):
                  (kind == 'array' and isinstance(value, list) and
                   all(isinstance(v, str) and v for v in value)))
         if not valid:
-            raise ValueError('Invalid update setting: ' + key)
+            raise ValueError('Invalid update setting: ' + NAMES[key])
 
 
 def _iso(stamp):
@@ -163,7 +164,7 @@ class Updates:
             _validate_settings(args)
             with _lock(self.ctx):
                 for key, value in args.items():
-                    self.ctx.set_config(key, value)
+                    self.ctx.set_config(NAMES[key], value)
                     if key == 'updates_enabled':
                         _control(self.ctx, _settings(self.ctx))
                 return json.dumps(_settings(self.ctx))

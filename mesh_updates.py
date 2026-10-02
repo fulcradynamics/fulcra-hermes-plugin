@@ -8,6 +8,7 @@ import time
 import uuid
 
 from . import mesh, tools, updates
+from .settings import get as get_setting
 
 SETTINGS = {
     'mesh_messages_enabled': {'type': 'boolean', 'default': False,
@@ -33,14 +34,14 @@ def validate(values):
         raise ValueError('Mesh enablement must be boolean')
     agent = values['mesh_agent']
     if not isinstance(agent, str) or len(agent) > 128 or any(ord(c) < 32 or ord(c) == 127 for c in agent):
-        raise ValueError('mesh_agent must be a string of at most 128 characters without control characters')
+        raise ValueError('mesh-agent must be a string of at most 128 characters without control characters')
     if values['mesh_messages_enabled'] and not agent.strip():
         raise ValueError('Set --mesh-agent NAME before enabling message checks')
 
 
 def sync(ctx):
     """Observe config transitions, invalidate work, but retain attempt cooldown."""
-    values = {k: ctx.get_config(k, s['default']) for k, s in SETTINGS.items()}
+    values = {k: get_setting(ctx, k, s['default']) for k, s in SETTINGS.items()}
     state = ctx.state.get(STATE_KEY, {})
     if state.get('settings') != values:
         state = {'settings': values, 'epoch': uuid.uuid4().hex,
@@ -122,7 +123,7 @@ class MeshUpdates:
                 return
             try:
                 state = sync(self.ctx)
-                interval = self.ctx.get_config('update_interval', 900)
+                interval = get_setting(self.ctx, 'update_interval', 900)
                 updates._validate_settings({'update_interval': interval})
             except ValueError:
                 return
