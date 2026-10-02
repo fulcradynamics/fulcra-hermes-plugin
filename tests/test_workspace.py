@@ -72,7 +72,13 @@ class WorkspaceTests(unittest.TestCase):
                 self.assertNotIn('type:', content)
             else:
                 self.assertTrue(content.startswith('---\ntype: '), path)
-        self.assertIn('human or agent may succeed', self.store.files['/workspace/general/member/assistant/role.md'])
+        role = self.store.files.get('/workspace/general/role/assistant/role.md', '')
+        self.assertIn('role_id: "assistant"', role)
+        self.assertIn('assignment_status: pending', role)
+        self.assertIn('current_holder: pending', role)
+        self.assertIn('/workspace/general/role/assistant/progress.md', self.store.files)
+        self.assertIn('[Role: assistant](role/assistant/)', seeds['index.md'])
+        self.assertFalse(any('/member/' in p or '/inbox/' in p for p in self.store.files))
         self.assertFalse(any(p.exists() for p in self.store.locals))
         for position, (argv, _) in enumerate(self.store.calls):
             if argv[1] == 'upload':
@@ -83,10 +89,21 @@ class WorkspaceTests(unittest.TestCase):
 
     def test_warm_session_preserves_user_content_and_on_demand_details(self):
         # Legacy/interrupted setup preserves existing detail and bookkeeping.
+        legacy = {
+            '/workspace/general/member/assistant/role.md': 'Legacy role; preserve history',
+            '/workspace/general/member/assistant/progress.md': 'Legacy checkpoint',
+            '/workspace/general/member/assistant/inbox/old.md': 'Legacy message; do not migrate',
+        }
+        self.store.files.update(legacy)
         self.pre()
+        self.assertEqual({p: self.store.files[p] for p in legacy}, legacy)
+        self.assertIn('assignment_status: pending', self.store.files['/workspace/general/role/assistant/role.md'])
         del self.store.files['/workspace/general/context.md']
         self.store.files['/workspace/general/knowledge/user-preferences.md'] = 'PRIVATE DETAIL'
         self.store.files['/workspace/general/index.md'] = 'Existing index'
+
+        self.store.files['/workspace/general/role/assistant/role.md'] = 'Assigned to Birch by the user'
+        self.store.files['/workspace/general/role/assistant/progress.md'] = 'Birch checkpoint; no takeover'
         before = self.store.files.copy()
         self.store.calls.clear()
         text = self.pre('legacy')['context']
@@ -245,7 +262,7 @@ class WorkspaceTests(unittest.TestCase):
         self.assertIsNone(self.ctx.get_config('workspace_context_enabled'))
         self.ctx.set_config('workspace_context_enabled', True)
         self.assertIn('missing seeds verified', self.pre()['context'])
-        self.assertIn('/workspace/general/member/assistant/role.md', self.store.files)
+        self.assertIn('/workspace/general/role/assistant/role.md', self.store.files)
         self.ctx.state.profile.reset(token)
         count = len(self.store.calls)
         self.assertIsNone(self.pre())

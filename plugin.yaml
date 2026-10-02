@@ -67,7 +67,7 @@ config_schema:
     type: string
     default: assistant
     pattern: '^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$'
-    description: Durable responsibility under member/, shared by successive humans or agents.
+    description: Stable responsibility under role/, independent of its current holder; not an assignment.
   interval:
     label: 'Shared checks: interval (seconds)'
     type: integer

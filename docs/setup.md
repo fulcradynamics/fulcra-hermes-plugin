@@ -69,13 +69,20 @@ setup flag. Booleans use `on`/`off` in setup and `true`/`false` in stored settin
 | Features | `mesh-messages` | `false` | Read peer records for own userid + `mesh-agent` |
 | Features | `mesh-invites` | `false` | Notice narrow incoming share candidates; no automatic acceptance |
 | Workspace | `workspace-name` | `general` | Remote `/workspace/<name>` namespace |
-| Workspace | `workspace-role` | `assistant` | Durable `member/<role>` bootstrap responsibility |
+| Workspace | `workspace-role` | `assistant` | Stable `role/<role-id>` responsibility; does not assign a holder |
 | Shared checks | `interval` | `900` | Minimum seconds between attempts for each of updates and mesh, 60–86400 |
 | Mesh | `mesh-agent` | `""` | Exact canonical `local_agent`, required when message checks are enabled |
 | Update filters | `updates-data-types` | `[]` | Exact type allowlist; empty means all |
 | Update filters | `updates-include-files` | `true` | Include file change metadata |
 | Update filters | `updates-file-prefixes` | `[]` | Literal path prefix allowlist; empty means all |
 | Update filters | `updates-ignore-prefixes` | `[]` | Exclusions override includes |
+
+The workspace skill uses durable `role/<role-id>/` definitions/checkpoints, separate
+from `member/<agent>/` identity/history. Selecting `workspace-role` does not assign
+a holder; new seeds leave assignment pending. Existing files are not automatically
+moved or rewritten. Warm startup still reads only `context.md`; reconcile legacy
+member-role records during authorized workspace work. Workspace inboxes and
+annotation messaging are not part of this subset; mesh remains independent.
 
 The filters are optional: retain defaults unless you want to narrow noisy notices.
 List flags replace the complete list, accept space-separated values (quote values
