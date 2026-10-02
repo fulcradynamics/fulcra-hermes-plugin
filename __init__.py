@@ -1,7 +1,7 @@
 """Fulcra Context plugin for Hermes Agent."""
 
 from pathlib import Path
-from . import mesh, mesh_updates, plugin_setup, redaction, tools, updates, workspace
+from . import mesh, mesh_updates, plugin_setup, tools, updates, workspace
 
 
 def register(ctx):

@@ -1,7 +1,8 @@
 """Run native registration and existing hook probes in disposable offline Hermes.
 
-Usage: python tests/native_hermes_probe.py HERMES_PYTHON HERMES_SOURCE
+Usage: python tests/native_hermes_probe.py HERMES_PYTHON HERMES_SOURCE [--doctor]
 """
+import argparse
 import os
 from pathlib import Path
 import runpy
@@ -20,6 +21,9 @@ def child(source, probe):
     bootstrap = types.ModuleType('hermes_bootstrap')
     bootstrap._happy_eyeballs_create_connection = lambda *a, **k: (_ for _ in ()).throw(RuntimeError('offline'))
     sys.modules['hermes_bootstrap'] = bootstrap
+    if probe == 'doctor':
+        from hermes_cli.plugins_cmd import cmd_plugin_doctor
+        raise SystemExit(cmd_plugin_doctor(str(Path(__file__).resolve().parents[1]), ci=True))
     if probe != 'native':
         sys.argv = [probe, source]
         runpy.run_path(str(Path(__file__).with_name(probe)), run_name='__main__')
@@ -62,8 +66,13 @@ def main():
     if os.environ.get('FULCRA_PROBE_CHILD'):
         child(sys.argv[1], sys.argv[2])
         return
-    python, source = sys.argv[1:]
-    for probe in ('native', 'hermes_updates_probe.py', 'mesh_hermes_probe.py'):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('python')
+    parser.add_argument('source')
+    parser.add_argument('--doctor', action='store_true')
+    args = parser.parse_args()
+    probes = ('doctor',) if args.doctor else ('native', 'hermes_updates_probe.py', 'mesh_hermes_probe.py')
+    for probe in probes:
         with tempfile.TemporaryDirectory(prefix='plat510-', dir=os.environ['TMPDIR']) as directory:
             root = Path(directory)
             home = root / 'home'
@@ -74,7 +83,7 @@ def main():
                    'TMPDIR': str(root), 'XDG_CONFIG_HOME': str(root / 'config'), 'XDG_CACHE_HOME': str(root / 'cache'),
                    'PYTHONDONTWRITEBYTECODE': '1', 'HF_HUB_OFFLINE': '1', 'FULCRA_PROBE_CHILD': '1'}
             bootstrap = 'import runpy,sys; sys.argv=sys.argv[1:]; runpy.run_path(sys.argv[0],run_name="__main__")'
-            subprocess.run([python, '-I', '-B', '-c', bootstrap, str(Path(__file__).resolve()), source, probe],
+            subprocess.run([args.python, '-I', '-B', '-c', bootstrap, str(Path(__file__).resolve()), args.source, probe],
                            env=env, cwd=root, check=True, timeout=180)
 
 

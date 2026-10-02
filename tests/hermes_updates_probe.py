@@ -143,18 +143,13 @@ def main():
                     assert not pre('offer-cron', platform='cron', first=True)
                     assert not pre('child', 'same-chat', first=True)
                     assert ctx.get_config('workspace_context_enabled', unset) is unset
-                    assert not pre()  # Ordinary turns must leave discovery available.
-                    assert ctx.state.get(plugin.plugin_setup.HINT_KEY) is None
-                    text = pre('new-session', first=True)
-                    assert all(option in text for option in ('options', 'workspace context.md loading',
-                        "what's-new notices", 'configurable shared check interval',
-                        'automatic mesh message checks', 'automatic mesh invitation checks',
-                        'independent', '/fulcra setup', 'hermes fulcra setup', 'Desktop Capabilities'))
-                    assert PluginContext(ctx.manifest, manager).state.get(plugin.plugin_setup.HINT_KEY) is True
+                    assert not pre()
+                    assert not pre('new-session', first=True)  # No first-session setup offer.
+                    assert ctx.state.get('setup-discovered.v1') is None
                     saved = yaml.safe_load((home / 'config.yaml').read_text())
                     assert 'workspace_context_enabled' not in saved['plugins']['entries']['context']['settings']
-                    assert not stores[name].calls  # Offering never accesses Fulcra files.
-                    assert not pre('already-offered', first=True)
+                    assert not stores[name].calls
+                    assert not pre('another-session', first=True)
                     slash = get_plugin_command_handler('fulcra')
                     assert slash is not None
                     assert 'Mesh' in slash('setup')
@@ -275,7 +270,7 @@ def main():
             manager.unload()
         print('PASS: real PluginContext/PluginState, config readback, hook dispatch, current-user context, '
               'A→B→A isolation, cross-session single delivery, copied worker/runtime scope, cron/child exclusion, cron writes remain visible, disable; '
-              'first-session options with ordinary-turn marker preservation, no config writes, registered slash/CLI setup, native settings recognition/readback, '
+              'no first-session setup offer or discovery marker, registered slash/CLI setup, native settings recognition/readback, '
               'automatic mesh message/invite notices and separate manual state, workspace single-context injection, '
               'private links not loaded, bounded reload and hook coexistence, no overwrite or persistent staging; network blocked.')
 

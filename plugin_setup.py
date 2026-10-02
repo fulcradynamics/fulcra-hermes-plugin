@@ -4,7 +4,7 @@ import json
 import re
 import shlex
 
-from . import mesh_updates, redaction, settings, updates, workspace
+from . import mesh_updates, settings, updates, workspace
 
 SETTINGS = {**workspace.SETTINGS, **updates.SETTINGS, **mesh_updates.SETTINGS}
 
@@ -17,17 +17,6 @@ GROUPS = (
     ('Update filters', ('updates_data_types', 'updates_include_files',
                         'updates_file_prefixes', 'updates_ignore_prefixes')),
 )
-HINT_KEY = 'setup-discovered.v1'  # Offered to the model or explicitly handled, not delivered/declined.
-HINT = ('Briefly offer these Fulcra setup options: workspace context.md loading; what\'s-new notices '
-        'and a configurable shared check interval; independent automatic mesh message checks '
-        'and automatic mesh invitation checks. Use Desktop Capabilities → Plugins → Context, '
-        '/fulcra setup, or hermes fulcra setup to choose. '
-        'Preserve all prior explicit choices; never auto-enable a feature. '
-        'No feature was enabled or configuration changed for this offer. All choices are explicit, '
-        'profile-wide and appropriate only for trusted chats sharing the OS Fulcra login. '
-        'Separately, optional local session literal redaction is explained by /fulcra redact help; '
-        'it is not blanket DLP and does not upload phrase lists. '
-        'Do not launch a questionnaire or block the current task.')
 
 
 class Parser(argparse.ArgumentParser):
@@ -64,37 +53,15 @@ class Setup:
         """Bind setup to the active profile's plugin context."""
         self.ctx = ctx
 
-    def pre(self, session_id='', parent_session_id='', platform='', is_first_turn=False, **kwargs):
-        """Offer options once per profile, only on an eligible new-session first turn."""
-        if is_first_turn is not True or not session_id or parent_session_id or platform == 'cron':
-            return
-        with updates._lock(self.ctx):
-            if self.ctx.state.get(HINT_KEY, False):
-                return
-            if all(type(settings.get(self.ctx, k)) is bool for k in FEATURES):
-                return
-            self.ctx.state.set(HINT_KEY, True)
-            return {'context': HINT}
-
     def command(self, raw_args=''):
         """Handle explicit slash setup without prompts or host exits."""
         action = raw_args.strip().split(maxsplit=1)[0] if raw_args.strip() else ''
-        if action == 'redact':
-            try:
-                session_id = ''
-                if not raw_args.rstrip().endswith(' --profile'):
-                    from gateway.session_context import get_session_env
-                    session_id = get_session_env('HERMES_SESSION_ID')
-                return redaction.Redaction(self.ctx).command(raw_args, session_id=session_id)
-            except Exception:
-                return redaction.ERROR
+
         # argparse's default help/error paths exit the host, including gateways.
         parser = Parser(prog='/fulcra', add_help=False, allow_abbrev=False)
         arguments(parser)
         parser.add_argument('-h', '--help', action='store_true')
         try:
-            with updates._lock(self.ctx):
-                self.ctx.state.set(HINT_KEY, True)
             args = vars(parser.parse_args(shlex.split(raw_args)))
             if args.pop('help'):
                 return parser.format_help() + '\n' + self.status()
@@ -111,8 +78,6 @@ class Setup:
         # Only our namespace keys, not Hermes's global parser options.
         values = {k: v for k, v in vars(args).items() if k in SETTINGS or k in ('action', 'migrate')}
         try:
-            with updates._lock(self.ctx):
-                self.ctx.state.set(HINT_KEY, True)
             text = self.apply(values)
         except (ValueError, OSError) as exc:
             text = 'Error: ' + str(exc)
@@ -163,17 +128,14 @@ class Setup:
                   'Choose --workspace on/off --updates on/off --interval 900 --mesh-messages on/off',
                   '       --mesh-invites on/off --mesh-agent NAME. Omitted choices are preserved.',
                   'Checks are turn-triggered; notices arrive on a later turn, never while idle.',
-                  'No automatic accept/share/reply/send. Workspace loads on a new session first turn.',
-                  'Local literal redaction: /fulcra redact help (docs/redaction.md).']
+                  'No automatic accept/share/reply/send. Workspace loads on a new session first turn.']
         return '\n'.join(lines)
 
 
 def register(ctx):
-    """Register setup frontends and discovery without persistent writes."""
+    """Register explicit setup frontends without persistent writes."""
     setup = Setup(ctx)
-    ctx.register_middleware('llm_execution', redaction.Redaction(ctx).execute)
     ctx.register_command('fulcra', setup.command, description='Fulcra setup, settings and status',
-                         args_hint='[setup|status|help|redact] [options]')
+                         args_hint='[setup|status|help] [options]')
     ctx.register_cli_command(name='fulcra', help='Fulcra setup and status',
                              setup_fn=setup.cli_setup, handler_fn=setup.cli)
-    ctx.register_hook('pre_llm_call', setup.pre)

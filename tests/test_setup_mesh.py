@@ -70,7 +70,6 @@ class SetupMeshTests(unittest.TestCase):
         self.assertIn('Workspace', text)
         self.assertIn('Mesh', text)
         self.assertEqual(self.ctx.config, {})
-        self.assertIsNone(self.setup.pre(session_id='chat', is_first_turn=True))
         self.ctx.set_config('updates_data_types', ['Steps'])
         text = self.setup.command('setup --workspace off --updates on --interval 120 --mesh-invites on')
         self.assertIn('120', text)
@@ -88,31 +87,6 @@ class SetupMeshTests(unittest.TestCase):
         self.setup.cli(parser.parse_args(['setup', '--mesh-agent', 'helper', '--mesh-messages', 'on']))
         self.assertIs(self.ctx.get_config('mesh-messages'), True)
         self.assertIn('helper', self.setup.command('status'))
-
-    def test_discovery_once_no_config_writes_and_native_choices(self):
-        self.ctx.set_config('updates_enabled', True)
-        before = self.ctx.config.copy()
-        for args in ({}, {'is_first_turn': True}, {'session_id': 'ordinary'},
-                     *({'session_id': 'ordinary', 'is_first_turn': value} for value in (False, None, 1, 'true')),
-                     {'session_id': 'cron', 'platform': 'cron', 'is_first_turn': True},
-                     {'session_id': 'child', 'parent_session_id': 'chat', 'is_first_turn': True}):
-            with patch.object(self.ctx.state, 'get', side_effect=AssertionError('Ineligible marker read')):
-                self.assertIsNone(self.setup.pre(**args))
-            self.assertIsNone(self.ctx.state.get(self.plugin.plugin_setup.HINT_KEY))
-        text = self.setup.pre(session_id='new-chat', is_first_turn=True)['context']
-        for option in ('options', 'workspace context.md loading', "what's-new notices",
-                       'configurable shared check interval', 'automatic mesh message checks',
-                       'automatic mesh invitation checks', 'independent', '/fulcra setup',
-                       'hermes fulcra setup', 'Desktop Capabilities'):
-            self.assertIn(option, text)
-        self.assertEqual(self.ctx.config, before)
-        self.assertIs(self.ctx.state.get(self.plugin.plugin_setup.HINT_KEY), True)
-        self.assertIsNone(self.plugin.plugin_setup.Setup(self.ctx).pre(session_id='other', is_first_turn=True))
-        token = self.ctx.state.profile.set('b')
-        for key in ('workspace_context_enabled', 'updates_enabled', 'mesh_messages_enabled', 'mesh_invites_enabled'):
-            self.ctx.set_config(key, False)
-        self.assertIsNone(self.setup.pre(session_id='chat', is_first_turn=True))
-        self.ctx.state.profile.reset(token)
 
     def test_messages_filter_dedup_restart_and_manual_cursor_independence(self):
         self.enable('--mesh-messages on --mesh-agent helper')

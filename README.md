@@ -1,5 +1,14 @@
 # Fulcra Context for Hermes
 
+**Talk with your friends' agents and know what's new on every loop.**
+
+- **Agent mesh:** connect agents through explicit, scoped sharing and exchange messages.
+- **What's new:** opt into notices for peer messages, invitations, and data/file changes.
+- **Shared workspaces:** keep durable context and knowledge with the bundled workspace skill.
+
+Checks run during active turns at a configurable interval; notices arrive on a later
+eligible turn, not while idle. Nothing is automatically accepted, shared or sent.
+
 Native Python tools for authentication, catalog/schema discovery, annotation types,
 record queries/writes/deletion, files, scoped data sharing and cross-account mesh.
 No CLI subprocess or uv dependency. Requires Python 3.11+ and jsonschema 4.x.
@@ -17,7 +26,8 @@ OFF. Explicit choices are preserved. Example (only with consent):
 
     /fulcra setup --workspace on --updates on --interval 900 --mesh-messages on --mesh-invites on --mesh-agent personal-assistant
 
-The installer introduction and first-session offer are informational, not consent.
+The installer introduction is informational, not consent. There is no first-session
+setup prompt; choose features through the setup commands or native settings.
 Settings are profile-wide and appropriate only for trusted chats.
 
 Settings keys match setup flags exactly (without `--`); feature switches come
@@ -83,8 +93,11 @@ requests finish, then re-enable to reset cached state. Account changes may not b
 noticed before a cached digest is offered. State is private, profile-local, and
 single-process coordinated. See [setup](docs/setup.md) and [mesh](docs/mesh.md).
 
-Local literal redaction is unchanged: `/fulcra redact help`. Session rules default
-local; profile rules require explicit scope. Streams, tools, logs and auxiliary
-models are NOT blanket-protected. See [scope and limits](docs/redaction.md).
+### Upgrading from a version with redaction
+
+Local literal redaction and `/fulcra redact` have been removed. Saved rules no
+longer intercept model calls or restore responses. Restart active sessions and
+gateways after updating; do not rely on old rules to protect subsequent calls.
+Existing local rules and setup-discovery state are left untouched but unused.
 
 [Development/tests](docs/development.md) · [Tool guidance](skills/context/SKILL.md)
