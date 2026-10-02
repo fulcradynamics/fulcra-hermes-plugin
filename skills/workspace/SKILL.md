@@ -66,10 +66,10 @@ independent opt-ins; see `/fulcra setup --help`. Older underscore settings remai
 readable; use the explicit setup migration described in [setup](../../docs/setup.md).
 
 On the first eligible `pre_llm_call` (first turn, session ID, no parent, not cron),
-startup downloads only `/workspace/<name>/context.md`. A present file means one
+startup downloads only `/workspace/<name>/index.md`. A present file means one
 read: no role/checkpoint preload, link traversal, migration or layout maintenance,
 including after a role change. Ordinary turns do no workspace network work.
-Only confirmed absence permits missing-only scaffolding; `context.md` is created
+Only confirmed absence permits missing-only scaffolding; `index.md` is created
 last after successful checks/readbacks. Later sessions can finish partial setup.
 Seeded indexes/logs are skeletal, not an inventory; reconcile them during authorized
 work. Existing content always wins over templates.
@@ -82,8 +82,7 @@ Only the overview enters the current user message, not history/system prompts.
 
 Paths are relative to `/workspace/<name>/`:
 
-    context.md                       concise startup overview, type Reference
-    index.md                         purpose, role/member links and known holders
+    index.md                         overview, purpose, navigation and known holders
     role.md                          workspace mission and operating boundaries
     progress.md                      shared goals, next actions and blockers
     completed.md                     verified objectives with evidence
@@ -111,6 +110,11 @@ read them, establish the separate durable role/checkpoint if needed, and link to
 the preserved history. Confirm the holder rather than deriving it from the old
 path. Warm startup does not perform this reconciliation.
 
+Older `context.md` overviews are no longer loaded or created. During authorized
+maintenance, read the old overview and existing index, merge relevant facts into
+the index without losing its links/metadata, and verify the result before retiring
+the old overview. Preserve unknown content; startup never migrates or deletes it.
+
 Use OKF v0.2: concept Markdown starts with YAML frontmatter containing a nonempty
 `type` (e.g. `Role`, `Progress Report`, `Task`, `Reference`, `Session Summary`).
 Preserve unknown types/metadata. `index.md` and `log.md` are reserved, not concepts;
@@ -124,7 +128,7 @@ milestones under newest-first `YYYY-MM-DD` headings. Non-Markdown belongs in
 Use `fulcra_file_download`, `fulcra_file_upload`, `fulcra_file_stat` and
 `fulcra_file_list`; no separate workspace tool or catalog query is needed.
 
-1. Start with `context.md`. When resuming work, also read the mission, shared
+1. Start with `index.md`. When resuming work, also read the mission, shared
    progress, your member role/progress, assigned role definition/checkpoint and
    relevant tasks. Confirm ownership; startup alone has not loaded these records.
 2. Read each target fully before editing. Permission, authentication, network or
@@ -136,8 +140,9 @@ Use `fulcra_file_download`, `fulcra_file_upload`, `fulcra_file_stat` and
 4. Upload the exact target and download it to verify before claiming persistence.
    After an uncertain write, reconcile by reading back before retrying.
 
-Keep `context.md` short: **Basic preferences**, **Available Fulcra data**, and
-**Further context** linking to detail. Empty sections mean unknown, not absent.
+Keep `index.md` short: purpose/orientation, **Basic preferences**, **Available
+Fulcra data**, and **Further context** linking to details and workspace records.
+It is the starting point for orientation, not just a file list. Empty sections mean unknown, not absent.
 Record source/date and uncertainty when known; never invent preferences or data,
 automatically query a catalog, store credentials or dump unrelated health data.
 Move detail behind links only after verifying the destination. Read linked files

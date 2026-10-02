@@ -40,7 +40,7 @@ config_schema:
     label: 'Features: workspace'
     type: boolean
     default: false
-    description: Load context.md in trusted chats; bootstrap missing workspace files only when enabled.
+    description: Load index.md in trusted chats; bootstrap missing workspace files only when enabled.
   updates:
     label: 'Features: updates'
     type: boolean

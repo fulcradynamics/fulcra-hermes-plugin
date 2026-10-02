@@ -64,7 +64,7 @@ setup flag. Booleans use `on`/`off` in setup and `true`/`false` in stored settin
 
 | Logical group | Setting | Default | Consumer / effect |
 | --- | --- | --- | --- |
-| Features | `workspace` | `false` | First-turn `context.md` loading; missing-only bootstrap |
+| Features | `workspace` | `false` | First-turn `index.md` orientation; missing-only bootstrap |
 | Features | `updates` | `false` | Turn-triggered what's-new digest |
 | Features | `mesh-messages` | `false` | Read peer records for own userid + `mesh-agent` |
 | Features | `mesh-invites` | `false` | Notice narrow incoming share candidates; no automatic acceptance |
@@ -80,9 +80,15 @@ setup flag. Booleans use `on`/`off` in setup and `true`/`false` in stored settin
 The workspace skill uses durable `role/<role-id>/` definitions/checkpoints, separate
 from `member/<agent>/` identity/history. Selecting `workspace-role` does not assign
 a holder; new seeds leave assignment pending. Existing files are not automatically
-moved or rewritten. Warm startup still reads only `context.md`; reconcile legacy
+moved or rewritten. Warm startup reads only `index.md`; reconcile legacy
 member-role records during authorized workspace work. Workspace inboxes and
 annotation messaging are not part of this subset; mesh remains independent.
+
+`index.md` now holds both the concise workspace overview and navigation. Existing
+`context.md` files are neither loaded nor deleted by startup. During authorized
+maintenance, read both files, merge useful overview content into the existing
+index while preserving its links/metadata, and verify the result before retiring
+the old overview. There is no automatic migration or legacy fallback read.
 
 The filters are optional: retain defaults unless you want to narrow noisy notices.
 List flags replace the complete list, accept space-separated values (quote values
