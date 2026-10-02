@@ -81,8 +81,10 @@ Read outgoing shares before changes and verify afterward. No arbitrary API metho
 
 ## Optional workflows
 
-Workspace startup loads only `/workspace/<name>/context.md`, never linked files.
-Confirmed missing context permits missing-only seed creation, context last, with
+Workspace startup loads only `/workspace/<name>/index.md`, combining orientation
+and navigation; it never loads linked files. Existing `context.md` content can be
+merged into the index during authorized maintenance, not automatically at startup.
+Confirmed missing index permits missing-only seed creation, index last, with
 readback. Errors do not imply absence. No conditional-create API exists; concurrent
 external setup can race. Injected excerpts are bounded and labeled untrusted.
 

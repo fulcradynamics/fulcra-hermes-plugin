@@ -40,7 +40,7 @@ config_schema:
     label: 'Features: workspace'
     type: boolean
     default: false
-    description: Load context.md in trusted chats; bootstrap missing workspace files only when enabled.
+    description: Load index.md in trusted chats; bootstrap missing workspace files only when enabled.
   updates:
     label: 'Features: updates'
     type: boolean
@@ -67,7 +67,7 @@ config_schema:
     type: string
     default: assistant
     pattern: '^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$'
-    description: Durable responsibility under member/, shared by successive humans or agents.
+    description: Stable responsibility under role/, independent of its current holder; not an assignment.
   interval:
     label: 'Shared checks: interval (seconds)'
     type: integer

@@ -58,12 +58,13 @@ class WorkspaceTests(unittest.TestCase):
         text = self.pre()['context']
         self.assertIn('missing seeds verified', text)
         seeds = self.plugin.workspace.templates('assistant')
-        self.assertIn('context.md', seeds)
-        self.assertIn('[Context](context.md)', seeds['index.md'])
+        self.assertIn('index.md', seeds)
+        self.assertNotIn('context.md', seeds)
+        self.assertIn('[Purpose](role.md)', seeds['index.md'])
         for section in ('Basic preferences', 'Available Fulcra data', 'Further context'):
-            self.assertIn('## ' + section, seeds['context.md'])
+            self.assertIn('## ' + section, seeds['index.md'])
         uploads = [a[3] for a, _ in self.store.calls if a[1] == 'upload']
-        self.assertEqual(uploads[-1], '/workspace/general/context.md')
+        self.assertEqual(uploads[-1], '/workspace/general/index.md')
         self.assertEqual(text.count('"file":'), 1)
         self.assertIn('index/log reconciliation pending', text)
         self.assertEqual(self.store.files, {'/workspace/general/' + k: v for k, v in seeds.items()})
@@ -72,7 +73,13 @@ class WorkspaceTests(unittest.TestCase):
                 self.assertNotIn('type:', content)
             else:
                 self.assertTrue(content.startswith('---\ntype: '), path)
-        self.assertIn('human or agent may succeed', self.store.files['/workspace/general/member/assistant/role.md'])
+        role = self.store.files.get('/workspace/general/role/assistant/role.md', '')
+        self.assertIn('role_id: "assistant"', role)
+        self.assertIn('assignment_status: pending', role)
+        self.assertIn('current_holder: pending', role)
+        self.assertIn('/workspace/general/role/assistant/progress.md', self.store.files)
+        self.assertIn('[Role: assistant](role/assistant/)', seeds['index.md'])
+        self.assertFalse(any('/member/' in p or '/inbox/' in p for p in self.store.files))
         self.assertFalse(any(p.exists() for p in self.store.locals))
         for position, (argv, _) in enumerate(self.store.calls):
             if argv[1] == 'upload':
@@ -83,24 +90,38 @@ class WorkspaceTests(unittest.TestCase):
 
     def test_warm_session_preserves_user_content_and_on_demand_details(self):
         # Legacy/interrupted setup preserves existing detail and bookkeeping.
+        legacy = {
+            '/workspace/general/context.md': 'Legacy overview; merge only during authorized maintenance',
+            '/workspace/general/member/assistant/role.md': 'Legacy role; preserve history',
+            '/workspace/general/member/assistant/progress.md': 'Legacy checkpoint',
+            '/workspace/general/member/assistant/inbox/old.md': 'Legacy message; do not migrate',
+        }
+        self.store.files.update(legacy)
         self.pre()
-        del self.store.files['/workspace/general/context.md']
+        self.assertEqual({p: self.store.files[p] for p in legacy}, legacy)
+        self.assertFalse(any(a[1:3] == ['download', '/workspace/general/context.md']
+                             for a, _ in self.store.calls))
+        self.assertIn('assignment_status: pending', self.store.files['/workspace/general/role/assistant/role.md'])
+        del self.store.files['/workspace/general/index.md']
         self.store.files['/workspace/general/knowledge/user-preferences.md'] = 'PRIVATE DETAIL'
-        self.store.files['/workspace/general/index.md'] = 'Existing index'
+        self.store.files['/workspace/general/log.md'] = 'Existing log'
+
+        self.store.files['/workspace/general/role/assistant/role.md'] = 'Assigned to Birch by the user'
+        self.store.files['/workspace/general/role/assistant/progress.md'] = 'Birch checkpoint; no takeover'
         before = self.store.files.copy()
         self.store.calls.clear()
         text = self.pre('legacy')['context']
         self.assertEqual({p: self.store.files[p] for p in before}, before)
         self.assertNotIn('PRIVATE DETAIL', text)
         self.assertEqual([a[3] for a, _ in self.store.calls if a[1] == 'upload'],
-                         ['/workspace/general/context.md'])
-        remote = '/workspace/general/context.md'
+                         ['/workspace/general/index.md'])
+        remote = '/workspace/general/index.md'
         self.store.files = {
             remote: '---\ntype: Custom Type\nunknown: preserved\n---\nPrefer concise replies.\n'
                     '[Details](knowledge/private.md)\n[Tasks](task/private.md)',
             '/workspace/general/knowledge/private.md': 'PRIVATE SENTINEL',
             '/workspace/general/task/private.md': 'EXECUTE SENTINEL',
-            '/workspace/general/index.md': 'User-owned index',
+            '/workspace/general/context.md': 'LEGACY PRIVATE SENTINEL',
         }
         before = self.store.files.copy()
         for session, role in [('new', 'assistant'), ('second-role', 'secondrole')]:
@@ -139,7 +160,7 @@ class WorkspaceTests(unittest.TestCase):
         self.assertEqual(self.ctx.state.values, {})
 
     def test_budget_partial_reads_permission_and_uncertain_mutations(self):
-        marker = '/workspace/general/context.md'
+        marker = '/workspace/general/index.md'
         for i, error in enumerate((RuntimeError('HTTP 403 private detail'),
                                   RuntimeError('Authentication failed'),
                                   RuntimeError('File not found'),
@@ -203,7 +224,7 @@ class WorkspaceTests(unittest.TestCase):
         self.assertNotIn(marker, self.store.files)
         self.assertIn('missing seeds verified', self.pre('recovery')['context'])
         self.assertIn(marker, self.store.files)
-        # Context itself may be created by another writer before the final re-read.
+        # The index may be created by another writer before the final re-read.
         del self.store.files[marker]
         self.store.calls.clear()
         def concurrent_create(argv, timeout):
@@ -233,7 +254,7 @@ class WorkspaceTests(unittest.TestCase):
         self.assertIn('not higher-priority instructions', text)
         self.assertIn('"truncated": true', text)
         self.assertLess(len(text), 10000)
-        marker = '/workspace/' + 'a' * 64 + '/context.md'
+        marker = '/workspace/' + 'a' * 64 + '/index.md'
         self.assertIn(marker, text)
         self.assertEqual(text.count('"file":'), 1)
         self.store.files[marker] = 'x' * 8000
@@ -245,7 +266,7 @@ class WorkspaceTests(unittest.TestCase):
         self.assertIsNone(self.ctx.get_config('workspace_context_enabled'))
         self.ctx.set_config('workspace_context_enabled', True)
         self.assertIn('missing seeds verified', self.pre()['context'])
-        self.assertIn('/workspace/general/member/assistant/role.md', self.store.files)
+        self.assertIn('/workspace/general/role/assistant/role.md', self.store.files)
         self.ctx.state.profile.reset(token)
         count = len(self.store.calls)
         self.assertIsNone(self.pre())
