@@ -46,6 +46,42 @@ class ToolTests(unittest.TestCase):
         self.assertIn('HTTP 422', result)
         self.assertNotIn('private', result)
 
+    def test_signed_out_tools_explain_how_to_sign_in(self):
+        import tempfile
+
+        tools = load_tools()
+        native = importlib.import_module('tool_fixture_plugin.client')
+        identifier = '00000000-0000-0000-0000-000000000001'
+        with tempfile.TemporaryDirectory() as root, patch.object(
+            native, 'credential_path', return_value=Path(root) / 'credentials.json'
+        ), patch.object(native.Client, '_open') as request:
+            for name, args in (
+                ('fulcra_data_catalog', {}),
+                ('fulcra_file_list', {}),
+                ('fulcra_record', {'data_type': 'Steps', 'records': [{}]}),
+                ('fulcra_delete_records', {'data_type': 'Steps', 'record_ids': [identifier]}),
+                ('fulcra_create_share', {'name': 'fixture', 'user_ids': [identifier], 'data_types': ['Steps']}),
+                ('fulcra_file_share', {'name': 'fixture', 'user_ids': [identifier], 'path': '/fixture.md'}),
+            ):
+                with self.subTest(tool=name):
+                    result = getattr(tools, name)(args)
+                    self.assertIn('not signed in', result)
+                    self.assertIn('fulcra_auth', result)
+                    self.assertIn('fulcra_auth_device', result)
+                    self.assertNotIn('outcome uncertain', result)
+            request.assert_not_called()
+
+    def test_unrelated_errors_do_not_instruct_sign_in_or_leak_details(self):
+        tools = load_tools()
+        with patch.object(tools, 'client', side_effect=ValueError('private-token')):
+            result = tools.fulcra_data_catalog({})
+        self.assertIn('outcome uncertain', result)
+        self.assertNotIn('fulcra_auth', result)
+        self.assertNotIn('private-token', result)
+        result = tools._error_text(tools.AuthenticationRequired('private-token'))
+        self.assertIn('fulcra_auth_device', result)
+        self.assertNotIn('private-token', result)
+
     def test_auth_errors_never_persist_or_include_secrets(self):
         tools = load_tools()
         with patch.object(tools, 'auth_finish', side_effect=ValueError('private-code secret-token')):
