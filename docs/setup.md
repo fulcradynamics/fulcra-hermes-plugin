@@ -13,8 +13,7 @@ come from `plugin.yaml`'s `config_schema`, under
 Feature switches come first, then workspace details, the shared interval, mesh
 identity and update filters. Labels prefix those groups; the current Hermes
 renderer need not render separate group sections. Changing a detail never enables
-its feature. On upgrade, run `hermes fulcra setup --migrate` **before opening the
-native form**; see compatibility below.
+its feature.
 
 In a chat, `/fulcra setup` shows current values and choices without enabling
 anything. `/fulcra status` and `/fulcra help` are read-only settings views.
@@ -64,18 +63,23 @@ setup flag. Booleans use `on`/`off` in setup and `true`/`false` in stored settin
 
 | Logical group | Setting | Default | Consumer / effect |
 | --- | --- | --- | --- |
-| Features | `workspace` | `false` | First-turn `context.md` loading; missing-only bootstrap |
+| Features | `workspace` | `false` | First-turn `index.md` orientation; missing-only bootstrap |
 | Features | `updates` | `false` | Turn-triggered what's-new digest |
 | Features | `mesh-messages` | `false` | Read peer records for own userid + `mesh-agent` |
 | Features | `mesh-invites` | `false` | Notice narrow incoming share candidates; no automatic acceptance |
 | Workspace | `workspace-name` | `general` | Remote `/workspace/<name>` namespace |
-| Workspace | `workspace-role` | `assistant` | Durable `member/<role>` bootstrap responsibility |
+| Workspace | `workspace-role` | `assistant` | Stable `role/<role-id>` responsibility; does not assign a holder |
 | Shared checks | `interval` | `900` | Minimum seconds between attempts for each of updates and mesh, 60–86400 |
 | Mesh | `mesh-agent` | `""` | Exact canonical `local_agent`, required when message checks are enabled |
 | Update filters | `updates-data-types` | `[]` | Exact type allowlist; empty means all |
 | Update filters | `updates-include-files` | `true` | Include file change metadata |
 | Update filters | `updates-file-prefixes` | `[]` | Literal path prefix allowlist; empty means all |
 | Update filters | `updates-ignore-prefixes` | `[]` | Exclusions override includes |
+
+The workspace skill uses durable `role/<role-id>/` definitions/checkpoints, separate
+from `member/<agent>/` identity/history. Selecting `workspace-role` does not assign
+a holder; new seeds leave assignment pending. Startup reads only `index.md`,
+which holds both the concise workspace overview and navigation.
 
 The filters are optional: retain defaults unless you want to narrow noisy notices.
 List flags replace the complete list, accept space-separated values (quote values
@@ -87,27 +91,7 @@ preserve existing choices. For example:
 /fulcra setup --updates-data-types --updates-ignore-prefixes
 ```
 
-### Upgrading saved settings
-
-Older underscore keys remain readable by runtime hooks and setup/status. New
-keys take precedence, including explicit `false` and empty lists. Nothing is
-rewritten at import, registration or read-only status. To copy only existing
-legacy choices into their new names, run:
-
-```text
-/fulcra setup --migrate
-```
-
-Or use `hermes fulcra setup --migrate`. Explicit flags in the same command win;
-unspecified features are not enabled. Migration is repeatable and leaves old keys
-intact, but subsequent edits must use the new names. The native Hermes form does
-not interpret legacy aliases, so migrate before using it to avoid displaying
-defaults for unmigrated choices. Status warns when legacy-only choices remain.
-To roll back the plugin, restore a config backup or copy the current choices back
-to the old keys; the retained old keys are not kept in sync.
-
-The existing `fulcra_configure_updates` model tool retains its underscore-shaped
-arguments and response for compatibility, but writes the same new settings.
+The `fulcra_configure_updates` model tool writes the same settings.
 
 Workspace names/roles are single ASCII path segments (1–64 characters, initially
 alphanumeric, then alphanumeric/hyphen/underscore). Agent names are strings of at
@@ -195,7 +179,7 @@ commands across CLI and gateways; `register_cli_command` supplies `hermes fulcra
 | Native settings form | Canonical, discoverable, all declared settings, shared writer |
 | `/fulcra setup` and `hermes fulcra setup` | Explicit noninteractive frontends sharing validation and readback; useful without Desktop |
 | Install-time introduction | Root `after-install.md` is rendered by the Hermes installer. It describes Fulcra and opt-in choices without executing setup; no callback or registration-time setup needed |
-| New setup model tool | Unnecessary permanent tool-schema cost; existing update configuration tool retained for compatibility |
+| New setup model tool | Unnecessary permanent tool-schema cost; use the setup commands or native form |
 
 Nothing runs at import/registration except registration itself. No Hermes core
 changes or host dependencies are needed. See [development.md](development.md) for

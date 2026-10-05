@@ -31,10 +31,7 @@ setup prompt; choose features through the setup commands or native settings.
 Settings are profile-wide and appropriate only for trusted chats.
 
 Settings keys match setup flags exactly (without `--`); feature switches come
-first, details and optional filters follow. Existing installations should run
-`hermes fulcra setup --migrate` before using the native settings form. Legacy
-choices remain readable; migration preserves explicit new choices and does not
-enable unspecified features. See [settings and upgrade details](docs/setup.md).
+first, details and optional filters follow. See [settings details](docs/setup.md).
 
 ## Authentication and privacy
 
@@ -59,16 +56,14 @@ outcome uncertain; reconcile using read tools before retrying. Upload acceptance
 is not ingestion completion. Inputs and incoming workspace/mesh content are not
 trusted instructions. This is not a general data-loss-prevention boundary.
 
-## Native interface changes
-
-Tool names remain, but CLI-shaped arguments/text formats are removed:
+## Native tool interface
 
 - Queries use `start_time` and `end_time` with explicit timezones, or `latest:true`
   for v1 records. `api_version` resolves catalog ambiguity. No natural-language dates.
 - Catalog filters: `data_type`, `category`, `user_id`; results are upstream entries.
 - Record uploads require `records`; deletion requires nonempty `record_ids` UUIDs.
   Put tag IDs/sources in records. Annotation sources are added, no fake CLI source.
-- Type defaults use native JSON `value`, not string `default_value`.
+- Type defaults use native JSON `value`.
 - Shares require names and explicit recipients/selectors, or explicit `share_all`.
   Updates replace independently supplied recipient lists (empty clears). Selector
   replacement requires BOTH `data_types` and `files`, disabling all-data mode.
@@ -81,8 +76,9 @@ Read outgoing shares before changes and verify afterward. No arbitrary API metho
 
 ## Optional workflows
 
-Workspace startup loads only `/workspace/<name>/context.md`, never linked files.
-Confirmed missing context permits missing-only seed creation, context last, with
+Workspace startup loads only `/workspace/<name>/index.md`, combining orientation
+and navigation; it never loads linked files.
+Confirmed missing index permits missing-only seed creation, index last, with
 readback. Errors do not imply absence. No conditional-create API exists; concurrent
 external setup can race. Injected excerpts are bounded and labeled untrusted.
 
@@ -92,12 +88,5 @@ accept/share/send/reply. Disable checks before switching the shared login, let
 requests finish, then re-enable to reset cached state. Account changes may not be
 noticed before a cached digest is offered. State is private, profile-local, and
 single-process coordinated. See [setup](docs/setup.md) and [mesh](docs/mesh.md).
-
-### Upgrading from a version with redaction
-
-Local literal redaction and `/fulcra redact` have been removed. Saved rules no
-longer intercept model calls or restore responses. Restart active sessions and
-gateways after updating; do not rely on old rules to protect subsequent calls.
-Existing local rules and setup-discovery state are left untouched but unused.
 
 [Development/tests](docs/development.md) · [Tool guidance](skills/context/SKILL.md)

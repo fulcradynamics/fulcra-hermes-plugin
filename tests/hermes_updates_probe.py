@@ -13,7 +13,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from test_updates import load_plugin
-from test_workspace import FileStore
+from native_fixture import FileStore
 from test_setup_mesh import OWN, PEER, CHANNEL, GRANT, MID
 
 
@@ -230,7 +230,7 @@ def main():
                         assert 'missing seeds verified' in text
                         assert all(path.startswith('/workspace/work-' + name + '/') for path in stores[name].files)
                         base = '/workspace/work-' + name + '/'
-                        path = base + 'context.md'
+                        path = base + 'index.md'
                         stores[name].files[base + 'knowledge/user-preferences.md'] = 'LINKED PRIVATE SENTINEL'
                         stores[name].files[path] = '---\ntype: Reference\n---\nPrivate preference ' + name + '\n[Details](knowledge/user-preferences.md)'
                         before = stores[name].files.copy()
@@ -254,7 +254,7 @@ def main():
                 ctx = contexts['a']
                 assert not get_plugin_command_handler('fulcra')(
                     'setup --workspace on --updates on').startswith('Error:')
-                stores['a'].files['/workspace/work-a/context.md'] = 'Combined workspace context'
+                stores['a'].files['/workspace/work-a/index.md'] = 'Combined workspace context'
                 mesh_mid[0] = '99999999-9999-4999-8999-999999999999'
                 assert not pre('combined-baseline')
                 now[0] += 61
