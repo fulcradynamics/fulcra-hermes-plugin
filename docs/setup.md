@@ -13,8 +13,7 @@ come from `plugin.yaml`'s `config_schema`, under
 Feature switches come first, then workspace details, the shared interval, mesh
 identity and update filters. Labels prefix those groups; the current Hermes
 renderer need not render separate group sections. Changing a detail never enables
-its feature. On upgrade, run `hermes fulcra setup --migrate` **before opening the
-native form**; see compatibility below.
+its feature.
 
 In a chat, `/fulcra setup` shows current values and choices without enabling
 anything. `/fulcra status` and `/fulcra help` are read-only settings views.
@@ -79,16 +78,8 @@ setup flag. Booleans use `on`/`off` in setup and `true`/`false` in stored settin
 
 The workspace skill uses durable `role/<role-id>/` definitions/checkpoints, separate
 from `member/<agent>/` identity/history. Selecting `workspace-role` does not assign
-a holder; new seeds leave assignment pending. Existing files are not automatically
-moved or rewritten. Warm startup reads only `index.md`; reconcile legacy
-member-role records during authorized workspace work. Workspace inboxes and
-annotation messaging are not part of this subset; mesh remains independent.
-
-`index.md` now holds both the concise workspace overview and navigation. Existing
-`context.md` files are neither loaded nor deleted by startup. During authorized
-maintenance, read both files, merge useful overview content into the existing
-index while preserving its links/metadata, and verify the result before retiring
-the old overview. There is no automatic migration or legacy fallback read.
+a holder; new seeds leave assignment pending. Startup reads only `index.md`,
+which holds both the concise workspace overview and navigation.
 
 The filters are optional: retain defaults unless you want to narrow noisy notices.
 List flags replace the complete list, accept space-separated values (quote values
@@ -100,27 +91,7 @@ preserve existing choices. For example:
 /fulcra setup --updates-data-types --updates-ignore-prefixes
 ```
 
-### Upgrading saved settings
-
-Older underscore keys remain readable by runtime hooks and setup/status. New
-keys take precedence, including explicit `false` and empty lists. Nothing is
-rewritten at import, registration or read-only status. To copy only existing
-legacy choices into their new names, run:
-
-```text
-/fulcra setup --migrate
-```
-
-Or use `hermes fulcra setup --migrate`. Explicit flags in the same command win;
-unspecified features are not enabled. Migration is repeatable and leaves old keys
-intact, but subsequent edits must use the new names. The native Hermes form does
-not interpret legacy aliases, so migrate before using it to avoid displaying
-defaults for unmigrated choices. Status warns when legacy-only choices remain.
-To roll back the plugin, restore a config backup or copy the current choices back
-to the old keys; the retained old keys are not kept in sync.
-
-The existing `fulcra_configure_updates` model tool retains its underscore-shaped
-arguments and response for compatibility, but writes the same new settings.
+The `fulcra_configure_updates` model tool writes the same settings.
 
 Workspace names/roles are single ASCII path segments (1–64 characters, initially
 alphanumeric, then alphanumeric/hyphen/underscore). Agent names are strings of at
@@ -208,7 +179,7 @@ commands across CLI and gateways; `register_cli_command` supplies `hermes fulcra
 | Native settings form | Canonical, discoverable, all declared settings, shared writer |
 | `/fulcra setup` and `hermes fulcra setup` | Explicit noninteractive frontends sharing validation and readback; useful without Desktop |
 | Install-time introduction | Root `after-install.md` is rendered by the Hermes installer. It describes Fulcra and opt-in choices without executing setup; no callback or registration-time setup needed |
-| New setup model tool | Unnecessary permanent tool-schema cost; existing update configuration tool retained for compatibility |
+| New setup model tool | Unnecessary permanent tool-schema cost; use the setup commands or native form |
 
 Nothing runs at import/registration except registration itself. No Hermes core
 changes or host dependencies are needed. See [development.md](development.md) for

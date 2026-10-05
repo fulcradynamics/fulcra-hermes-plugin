@@ -21,10 +21,7 @@ role ID `assistant`; honor an explicit workspace/role and existing content.
 No setup questionnaire: ask only for missing purpose, identity or authority
 needed for the current task. Selecting a role is not assigning its holder.
 
-This is the **file-based project-record subset** of Fulcra workspaces. Do not
-create or use workspace inboxes, annotation message channels or workspace
-message polling. Existing messaging history stays untouched. Cross-account
-agent mesh is separate and requires approval for the specific share.
+This skill maintains the file-based project record of a Fulcra workspace.
 
 ## Durable roles and ownership
 
@@ -42,8 +39,9 @@ agent mesh is separate and requires approval for the specific share.
   configuration alone never claims ownership.
 - On authorized takeover, read the prior role checkpoint and relevant tasks,
   preserve previous member history, and coordinate the assignment update with
-  its owner. Keep the role ID stable. If assignment is missing or conflicting,
-  ask the user/manager; do not adopt work or edit its checkpoint automatically.
+  its owner. Keep the role ID stable and the index's holder pointers consistent.
+  If the index and assignment disagree, or the role is vacant/pending, ask the
+  user/manager; do not adopt work or edit its checkpoint automatically.
 - Role records are documentation, not authentication, access grants, locks,
   leases or proof of a running agent. Joining does not authorize editing another
   member's history or shared summaries. Maintain only files within your authority;
@@ -62,12 +60,11 @@ Use `/fulcra setup`, `hermes fulcra setup` or Desktop → Capabilities → Plugi
 For example: `terminal(command="hermes fulcra setup --workspace on")`.
 Names are single segments, 1–64 ASCII alphanumeric/hyphen/underscore characters,
 starting alphanumeric. Preserve omitted choices. Updates and mesh notices have
-independent opt-ins; see `/fulcra setup --help`. Older underscore settings remain
-readable; use the explicit setup migration described in [setup](../../docs/setup.md).
+independent opt-ins; see `/fulcra setup --help` or [setup](../../docs/setup.md).
 
 On the first eligible `pre_llm_call` (first turn, session ID, no parent, not cron),
 startup downloads only `/workspace/<name>/index.md`. A present file means one
-read: no role/checkpoint preload, link traversal, migration or layout maintenance,
+read: no role/checkpoint preload, link traversal or layout maintenance,
 including after a role change. Ordinary turns do no workspace network work.
 Only confirmed absence permits missing-only scaffolding; `index.md` is created
 last after successful checks/readbacks. Later sessions can finish partial setup.
@@ -103,17 +100,6 @@ Create member/task/session/artifact records when needed, not invented work or
 empty directories. The workspace manager owns the index/mission; designated
 owners maintain shared summaries and the task index. The authorized current
 holder maintains the role checkpoint. Contributors preserve unrelated content.
-
-Existing `member/<role>/` records from earlier plugin versions remain valid
-history: **no automatic moves, renames or deletion**. During authorized maintenance,
-read them, establish the separate durable role/checkpoint if needed, and link to
-the preserved history. Confirm the holder rather than deriving it from the old
-path. Warm startup does not perform this reconciliation.
-
-Older `context.md` overviews are no longer loaded or created. During authorized
-maintenance, read the old overview and existing index, merge relevant facts into
-the index without losing its links/metadata, and verify the result before retiring
-the old overview. Preserve unknown content; startup never migrates or deletes it.
 
 Use OKF v0.2: concept Markdown starts with YAML frontmatter containing a nonempty
 `type` (e.g. `Role`, `Progress Report`, `Task`, `Reference`, `Session Summary`).
@@ -153,8 +139,8 @@ checkpoint with result/evidence, next executable action and blockers. Task updat
 are dated and agent-attributed; preserve earlier decisions. Write a concise session
 summary of decisions, evidence and next steps. Update shared progress/completed/log
 only if you own them; otherwise report evidence to their owner through the current
-user interaction, not a workspace messaging channel. Do not mark unfinished work
-complete or confuse a role assignment with permission to execute.
+user interaction. Do not mark unfinished work complete or confuse a role assignment
+with permission to execute.
 
 ## Pitfalls and verification
 
@@ -170,16 +156,14 @@ complete or confuse a role assignment with permission to execute.
 - The API has no conditional create. Same-process locking and re-reads do not
   prevent races across processes/profiles; coordinate setup and role handoffs.
 - Verify exact write readbacks and ownership, preserve prior history, and leave
-  no claim of assignment, completion or migration unsupported by evidence.
+  no claim of assignment or completion unsupported by evidence.
 
-## Compatibility sources
+## Sources
 
 Project-record and durable-role conventions adapted from Fulcra workspaces and
 its [structure reference](https://github.com/fulcradynamics/agent-skills/blob/7e93df3b673fe0d38a5bac6dc91c8fe8807f2abb/skills/fulcra-workspaces/references/workspace-structure.md)
 at `7e93df3b673fe0d38a5bac6dc91c8fe8807f2abb`.
 [OKF v0.2](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/22efaa5402775a7c4d4c37f89e41258daaf3cb65/okf/SPEC.md).
 
-Intentional subset: no workspace messaging/channel setup, local-memory integration
-or scheduling. Hermes keeps opt-in context-only startup and missing-only seeds;
-role/member maintenance and handoffs happen during authorized work. Native plugin
-tools replace the upstream CLI/MCP examples.
+Hermes uses native plugin tools, opt-in index-only startup and missing-only seeds;
+role/member maintenance and handoffs happen during authorized work.

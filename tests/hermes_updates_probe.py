@@ -13,7 +13,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from test_updates import load_plugin
-from test_workspace import FileStore
+from native_fixture import FileStore
 from test_setup_mesh import OWN, PEER, CHANNEL, GRANT, MID
 
 

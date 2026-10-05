@@ -8,6 +8,30 @@ from pathlib import Path
 import tempfile
 
 
+class FileStore:
+    """In-memory workspace files for the offline Hermes hook probe."""
+    def __init__(self):
+        self.files = {}
+        self.calls = []
+        self.locals = []
+
+    def __call__(self, argv, timeout):
+        self.calls.append((argv, timeout))
+        operation = argv[1]
+        remote = argv[2] if operation == 'download' else argv[3]
+        local = Path(argv[3] if operation == 'download' else argv[2])
+        self.locals.append(local)
+        assert local.parent.stat().st_mode & 0o777 == 0o700
+        if operation == 'upload':
+            assert local.stat().st_mode & 0o777 == 0o600
+            self.files[remote] = local.read_text()
+            return 'Uploaded'
+        if remote not in self.files:
+            raise RuntimeError(f'Fulcra CLI exited with status 1: Error: File not found in Fulcra: {remote}')
+        local.write_text(self.files[remote])
+        return 'Downloaded to local file'
+
+
 def install(plugin):
     tools = plugin.tools
     def unavailable(*args, **kwargs):

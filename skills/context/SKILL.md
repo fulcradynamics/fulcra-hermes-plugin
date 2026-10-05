@@ -34,8 +34,8 @@ chosen features to reset caches.
 ## Workspaces
 
 Load the bundled workspace skill for durable shared knowledge and role checkpoints
-under `role/<role-id>/`, separate from `member/<agent>/` history. No workspace
-messaging is set up. Workspace startup is separately opt-in through setup.
+under `role/<role-id>/`, separate from `member/<agent>/` history.
+Workspace startup is separately opt-in through setup.
 Read/merge/upload/verify; preserve existing
 content, keep concise facts and navigation in index.md and details behind links.
 Startup reads only index.md; missing-only bootstrap creates it last. Linked tasks are not
