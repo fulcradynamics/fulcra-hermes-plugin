@@ -64,6 +64,10 @@ class MissingFile(FileNotFoundError):
     pass
 
 
+class AuthenticationRequired(ValueError):
+    """An authenticated request cannot start without Fulcra credentials."""
+
+
 def credential_path():
     # Intentionally OS-user shared, identical to the official CLI (not XDG/profile).
     return Path.home() / '.config' / 'fulcra' / 'credentials.json'
@@ -120,7 +124,7 @@ class Client(FulcraAPI):
         with _auth_lock(self.deadline):
             self._reconcile_credentials()
             if kwargs.get('authenticated', True) and self.fulcra_credentials is None:
-                raise ValueError('Authenticate with fulcra_auth first.')
+                raise AuthenticationRequired('Authenticate with fulcra_auth first.')
             return super().fulcra_api(*args, **kwargs)
 
     def file_stat(self, path, user_id=None):
@@ -151,6 +155,8 @@ def client(*, timeout=30):
     with _auth_lock(deadline):
         path = credential_path()
         creds = _load_credentials(path)
+        if creds is None:
+            raise AuthenticationRequired('Authenticate with fulcra_auth first.')
         _remaining(deadline)
         generation = _GENERATIONS.get(path)
         if generation is None or generation.credentials != creds:

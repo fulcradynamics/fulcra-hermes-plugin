@@ -52,6 +52,9 @@ def child(source, probe):
             assert sorted(home.rglob('*')) == before
             assert context.get_config('workspace_context_enabled', False) is False
             entry = registry.get_entry('fulcra_data_catalog', scope=manager.scope_key)
+            signed_out = entry.handler({})
+            assert 'not signed in' in signed_out, signed_out
+            assert 'fulcra_auth' in signed_out and 'fulcra_auth_device' in signed_out
             with patch.object(plugin.tools, 'client') as factory:
                 factory.return_value.v1_catalog.return_value = [{'id': 'fixture'}]
                 assert entry.handler({}) == '[{"id": "fixture"}]'

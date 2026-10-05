@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from urllib.error import HTTPError
 
-from .client import client, auth_start, auth_finish
+from .client import AuthenticationRequired, client, auth_start, auth_finish
 from ._vendor.records import get_records
 from .output import _bounded_output
 
@@ -35,6 +35,11 @@ def _enum(*values):
 
 def _error_text(exc, device_code=None):
     # Never interpolate network errors, bodies, URLs, credentials or payloads.
+    if isinstance(exc, AuthenticationRequired):
+        return ('Error: You are not signed in to Fulcra. Call fulcra_auth to start sign-in, '
+                'share verification_uri/user_code with the user, then call fulcra_auth_device '
+                'with device_code after browser approval. Once authorized, retry the original '
+                'request; verify any earlier writes before retrying them.')
     if isinstance(exc, HTTPError):
         return f'Error: Fulcra HTTP {exc.code}; writes may have completed. Verify before retrying.'
     if isinstance(exc, LocalError):
