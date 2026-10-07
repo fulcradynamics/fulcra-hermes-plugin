@@ -5,6 +5,7 @@ or dateparser at runtime. See [_vendor provenance](../_vendor/PROVENANCE.md).
 
     python -m unittest discover -s tests -v
     FULCRA_UPSTREAM=/path/to/pinned/fulcra-api-python python -m unittest discover -s tests -v
+    hermes plugins validate .
     hermes plugins doctor . --ci
     git diff --check
 
@@ -16,13 +17,17 @@ byte download and refresh persistence using synthetic credentials. Retained work
 transcripts use a test-only native fixture adapter, not a production CLI transport.
 
 For installed Hermes, use its already-provisioned Python and matching source, not
-a bootstrap launcher that might provision another runtime. Disposable homes and
-blocked networking keep probes away from live profiles:
+a bootstrap launcher that might provision another runtime. Probes use disposable
+homes and scrubbed credentials; runtime probes also block Python socket access.
+Validation launches Hermes's own recording subprocess (the socket guard is not inherited):
 
+    python tests/native_hermes_probe.py /existing/runtime/bin/python /path/to/hermes --validate
     python tests/native_hermes_probe.py /existing/runtime/bin/python /path/to/hermes --doctor
     python tests/native_hermes_probe.py /existing/runtime/bin/python /path/to/hermes
 
-These separately invoke real doctor discovery/registration and native tool/setup/hooks.
+These separately invoke catalog validation, doctor discovery/registration and native tool/setup/hooks.
+Catalog validation uses a recording context without runtime state; defer state access
+until a registered handler runs. Doctor alone does not exercise this contract.
 The bootstrap-only stub prevents provisioning; real PluginContext, native settings,
 slash/CLI registration and hook dispatch remain in use. Probes verify the absence
 of a first-session setup offer while retaining workspace/update/mesh behavior.

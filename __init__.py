@@ -14,7 +14,7 @@ def register(ctx):
     workspace.register(ctx)
     updates.register(ctx)
     ctx.register_tool(name="fulcra_mesh", toolset="context", schema=mesh.SCHEMA,
-                      handler=mesh.make_handler(ctx.state))
+                      handler=lambda args, **kwargs: mesh.make_handler(ctx.state)(args, **kwargs))
 
     skills_dir = Path(__file__).parent / "skills"
     if skills_dir.exists():

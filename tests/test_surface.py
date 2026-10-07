@@ -3,10 +3,25 @@ import argparse
 import unittest
 from unittest.mock import Mock, patch
 
-from test_updates import Context, load_plugin
+from test_updates import Context, State, load_plugin
 
 
 class SurfaceTests(unittest.TestCase):
+    def test_mesh_resolves_state_only_when_called(self):
+        plugin = load_plugin()
+        ctx = Context()
+        del ctx.state
+        with patch.object(plugin.mesh, 'make_handler') as factory:
+            plugin.register(ctx)
+            factory.assert_not_called()
+            args = {'action': 'receive', 'local_agent': 'helper'}
+            for state in (State(), State()):
+                ctx.state = state
+                result = ctx.tools['fulcra_mesh'](args, session_id='session')
+                factory.assert_called_with(state)
+                factory.return_value.assert_called_with(args, session_id='session')
+                self.assertIs(result, factory.return_value.return_value)
+
     def test_registration_keeps_tools_and_skills_without_model_interception(self):
         plugin = load_plugin()
         ctx = Context()

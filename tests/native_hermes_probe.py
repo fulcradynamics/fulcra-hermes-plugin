@@ -1,6 +1,6 @@
 """Run native registration and existing hook probes in disposable offline Hermes.
 
-Usage: python tests/native_hermes_probe.py HERMES_PYTHON HERMES_SOURCE [--doctor]
+Usage: python tests/native_hermes_probe.py HERMES_PYTHON HERMES_SOURCE [--doctor | --validate]
 """
 import argparse
 import os
@@ -21,6 +21,10 @@ def child(source, probe):
     bootstrap = types.ModuleType('hermes_bootstrap')
     bootstrap._happy_eyeballs_create_connection = lambda *a, **k: (_ for _ in ()).throw(RuntimeError('offline'))
     sys.modules['hermes_bootstrap'] = bootstrap
+    if probe == 'validate':
+        from hermes_cli.plugins_cmd_catalog import cmd_validate
+        cmd_validate(str(Path(__file__).resolve().parents[1]))
+        return
     if probe == 'doctor':
         from hermes_cli.plugins_cmd import cmd_plugin_doctor
         raise SystemExit(cmd_plugin_doctor(str(Path(__file__).resolve().parents[1]), ci=True))
@@ -72,9 +76,15 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('python')
     parser.add_argument('source')
-    parser.add_argument('--doctor', action='store_true')
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument('--doctor', action='store_true')
+    mode.add_argument('--validate', action='store_true')
     args = parser.parse_args()
-    probes = ('doctor',) if args.doctor else ('native', 'hermes_updates_probe.py', 'mesh_hermes_probe.py')
+    probes = ('native', 'hermes_updates_probe.py', 'mesh_hermes_probe.py')
+    if args.validate:
+        probes = ('validate',)
+    elif args.doctor:
+        probes = ('doctor',)
     for probe in probes:
         with tempfile.TemporaryDirectory(prefix='plat510-', dir=os.environ['TMPDIR']) as directory:
             root = Path(directory)
