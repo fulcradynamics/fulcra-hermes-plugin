@@ -67,13 +67,13 @@ class SetupMeshTests(unittest.TestCase):
 
     def test_setup_readback_validation_preservation_and_cli(self):
         text = self.setup.command('setup')
-        self.assertIn('Workspace', text)
+        self.assertNotIn('Workspace', text)
         self.assertIn('Mesh', text)
         self.assertEqual(self.ctx.config, {})
         self.ctx.set_config('updates_data_types', ['Steps'])
-        text = self.setup.command('setup --workspace off --updates on --interval 120 --mesh-invites on')
+        text = self.setup.command('setup --updates on --interval 120 --mesh-invites on')
         self.assertIn('120', text)
-        self.assertIs(self.ctx.get_config('workspace'), False)
+        self.assertIsNone(self.ctx.get_config('workspace'))
         self.assertEqual(self.ctx.get_config('updates_data_types'), ['Steps'])
         before = self.ctx.config.copy()
         for text in ('setup --workspace on --interval 1', 'setup --mesh-messages on',

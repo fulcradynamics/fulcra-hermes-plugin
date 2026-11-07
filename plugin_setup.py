@@ -1,17 +1,15 @@
 """Native settings plus explicit, noninteractive slash/CLI frontends."""
 import argparse
 import json
-import re
 import shlex
 
-from . import mesh_updates, settings, updates, workspace
+from . import mesh_updates, settings, updates
 
-SETTINGS = {**workspace.SETTINGS, **updates.SETTINGS, **mesh_updates.SETTINGS}
+SETTINGS = {**updates.SETTINGS, **mesh_updates.SETTINGS}
 
-FEATURES = ('workspace_context_enabled', 'updates_enabled', 'mesh_messages_enabled', 'mesh_invites_enabled')
+FEATURES = ('updates_enabled', 'mesh_messages_enabled', 'mesh_invites_enabled')
 GROUPS = (
     ('Features', FEATURES),
-    ('Workspace', ('workspace_name', 'workspace_role')),
     ('Shared checks', ('update_interval',)),
     ('Mesh', ('mesh_agent',)),
     ('Update filters', ('updates_data_types', 'updates_include_files',
@@ -100,9 +98,6 @@ class Setup:
             merged = {**current, **changes}
             # Validate the complete proposed configuration before the first config write.
             updates._validate_settings({k: merged[k] for k in updates.SETTINGS})
-            for key in ('workspace_name', 'workspace_role'):
-                if not isinstance(merged[key], str) or not re.fullmatch(workspace.SEGMENT, merged[key]):
-                    raise ValueError(settings.NAMES[key] + ' must be a single alphanumeric, hyphen or underscore segment (1–64 characters)')
             mesh_updates.validate(merged)
             for key in FEATURES:
                 if type(merged[key]) is not bool:
@@ -125,10 +120,10 @@ class Setup:
                 value = settings.get(self.ctx, key, SETTINGS[key]['default'])
                 lines.append('  ' + settings.NAMES[key] + ' = ' + json.dumps(value, ensure_ascii=True))
         lines += ['Use Desktop Capabilities → Plugins, /fulcra setup --help, or hermes fulcra setup --help.',
-                  'Choose --workspace on/off --updates on/off --interval 900 --mesh-messages on/off',
+                  'Choose --updates on/off --interval 900 --mesh-messages on/off',
                   '       --mesh-invites on/off --mesh-agent NAME. Omitted choices are preserved.',
                   'Checks are turn-triggered; notices arrive on a later turn, never while idle.',
-                  'No automatic accept/share/reply/send. Workspace loads on a new session first turn.']
+                  'No automatic accept/share/reply/send.']
         return '\n'.join(lines)
 
 

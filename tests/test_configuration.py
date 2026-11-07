@@ -12,16 +12,16 @@ class ConfigurationTests(unittest.TestCase):
         self.setup = self.plugin.plugin_setup.Setup(self.ctx)
 
     def test_setup_writes_flag_names_and_runtime_reads_them(self):
-        result = self.setup.command('setup --workspace off --updates on --interval 120 '
+        result = self.setup.command('setup --updates on --interval 120 '
                                     '--mesh-agent helper --mesh-messages on --mesh-invites off')
         self.assertNotIn('Error:', result)
         self.assertIs(self.ctx.get_config('updates'), True)
         self.assertEqual(self.ctx.get_config('interval'), 120)
-        self.assertIs(self.ctx.get_config('workspace'), False)
+        self.assertIsNone(self.ctx.get_config('workspace'))
         self.assertIs(self.plugin.updates._settings(self.ctx)['updates_enabled'], True)
         self.assertIs(self.plugin.mesh_updates.sync(self.ctx)['settings']['mesh_messages_enabled'], True)
         self.assertIn('  mesh-messages = true', result)
-        self.assertLess(result.index('Features:'), result.index('Workspace:'))
+        self.assertNotIn('Workspace:', result)
         self.assertNotIn('updates_enabled', result)
 
     def test_filters_use_same_cli_and_slash_flags_and_clear_explicitly(self):

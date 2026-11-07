@@ -32,7 +32,7 @@ class SurfaceTests(unittest.TestCase):
         self.assertEqual(set(ctx.tools), set(plugin.tools.TOOL_SCHEMAS) |
                          {'fulcra_mesh', 'fulcra_configure_updates'})
         self.assertEqual({call.args[0] for call in ctx.register_skill.call_args_list},
-                         {'context', 'workspace'})
+                         {'context'})
 
     def test_setup_registers_only_explicit_frontends(self):
         plugin = load_plugin()

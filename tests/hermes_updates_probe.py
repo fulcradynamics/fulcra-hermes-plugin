@@ -169,8 +169,9 @@ def main():
                     assert fields['mesh-agent']['type'] == 'string'
                     assert fields['interval']['type'] == 'number'
                     assert all(f['label'] != k and f['description'] for k, f in fields.items())
-                    save_plugin_settings('context', Path(ctx.manifest.path), {'workspace': False})
-                    assert ctx.get_config('workspace') is False
+                    save_plugin_settings('context', Path(ctx.manifest.path), {'updates-include-files': False})
+                    assert ctx.get_config('updates-include-files') is False
+                    assert 'workspace' not in fields
                     ctx.set_config('updates_data_types', [name + '-type'])
                     assert not slash('setup --migrate').startswith('Error:')
                     fields = {f['key']: f for f in plugin_settings_fields('context', Path(ctx.manifest.path))}
@@ -218,43 +219,20 @@ def main():
                     ctx.set_config('workspace', True)
                     saved = yaml.safe_load((home / 'config.yaml').read_text())
                     assert saved['plugins']['entries']['context']['settings']['workspace-name'] == 'work-' + name
+                    stores[name].files['/workspace/existing/index.md'] = 'Preserve user content'
+                    before = stores[name].files.copy()
                     count = len(stores[name].calls)
                     assert not pre('workspace-cron', platform='cron', first=True)
                     assert not pre('workspace-child', parent='parent', first=True)
                     assert not pre('workspace-ordinary')
-                    text = pre('workspace-chat', first=True)
-                    if count:
-                        assert not text and len(stores[name].calls) == count
-                    else:
-                        assert 'user-owned reference' in text and 'researcher' in text
-                        assert 'missing seeds verified' in text
-                        assert all(path.startswith('/workspace/work-' + name + '/') for path in stores[name].files)
-                        base = '/workspace/work-' + name + '/'
-                        path = base + 'index.md'
-                        stores[name].files[base + 'knowledge/user-preferences.md'] = 'LINKED PRIVATE SENTINEL'
-                        stores[name].files[path] = '---\ntype: Reference\n---\nPrivate preference ' + name + '\n[Details](knowledge/user-preferences.md)'
-                        before = stores[name].files.copy()
-                        count = len(stores[name].calls)
-                        text = pre('workspace-new', first=True)
-                        assert len(stores[name].calls) == count + 1
-                        assert stores[name].calls[-1][0][1:3] == ['download', path]
-                        assert stores[name].files == before
-                        assert 'LINKED PRIVATE SENTINEL' not in text
-                        assert 'Private preference ' + name in text
-                        assert 'Private preference ' + ('b' if name == 'a' else 'a') not in text
-                        stores[name].files[path] = '\x01' * 9000
-                        text = pre('workspace-bounded', first=True)
-                        assert len(text) < 10000 and '"truncated": true' in text
-                        assert path in text and 'UNTRUSTED DATA' in text
-                        assert len(stores[name].calls) == count + 2
-                    assert not any(path.exists() for path in stores[name].locals)
-                    ctx.set_config('workspace', False)
-                    assert not pre('workspace-disabled', first=True)
+                    assert not pre('workspace-chat', first=True)
+                    assert stores[name].files == before
+                    assert len(stores[name].calls) == count
+                    assert ctx.get_config('workspace') is True  # Saved user settings are not deleted.
             with scope('a'):
                 ctx = contexts['a']
                 assert not get_plugin_command_handler('fulcra')(
-                    'setup --workspace on --updates on').startswith('Error:')
-                stores['a'].files['/workspace/work-a/index.md'] = 'Combined workspace context'
+                    'setup --updates on').startswith('Error:')
                 mesh_mid[0] = '99999999-9999-4999-8999-999999999999'
                 assert not pre('combined-baseline')
                 now[0] += 61
@@ -264,15 +242,16 @@ def main():
                 assert PluginContext(ctx.manifest, managers['a']).state.get(
                     plugin.mesh_updates.STATE_KEY) == ctx.state.get(plugin.mesh_updates.STATE_KEY)
                 text = pre('combined-first-turn', first=True)
-                assert all(part in text for part in ('Combined workspace context', 'a-type', 'a-mesh', mesh_mid[0]))
+                assert all(part in text for part in ('a-type', 'a-mesh', mesh_mid[0]))
+                assert 'Preserve user content' not in text
                 assert not pre('combined-later')
         for manager in managers.values():
             manager.unload()
         print('PASS: real PluginContext/PluginState, config readback, hook dispatch, current-user context, '
               'A→B→A isolation, cross-session single delivery, copied worker/runtime scope, cron/child exclusion, cron writes remain visible, disable; '
               'no first-session setup offer or discovery marker, registered slash/CLI setup, native settings recognition/readback, '
-              'automatic mesh message/invite notices and separate manual state, workspace single-context injection, '
-              'private links not loaded, bounded reload and hook coexistence, no overwrite or persistent staging; network blocked.')
+              'automatic mesh message/invite notices and separate manual state, no workspace loading or seeding, '
+              'existing workspace files/settings preserved; network blocked.')
 
 
 if __name__ == '__main__':

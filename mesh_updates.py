@@ -71,7 +71,7 @@ def _candidates(shares, own):
         channels = share.get('fulcra_data_types')
         channel = channels[0] if isinstance(channels, list) and len(channels) == 1 else None
         owner, grant = share.get('sharing_fulcra_userid'), mesh._share_id(share)
-        if (mesh._channel(channel) and mesh._uuid(owner) and owner != own
+        if (mesh._incoming_channel(channel) and mesh._uuid(owner) and owner != own
                 and mesh._uuid(grant) and isinstance(share.get('grant_type'), str)
                 and share['grant_type'] and mesh._narrow(share, channel)):
             key = json.dumps([owner, channel, grant, share.get('grant_type')], sort_keys=True)

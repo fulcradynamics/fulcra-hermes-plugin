@@ -15,8 +15,9 @@ OVERLAP = timedelta(minutes=10)
 INITIAL_WINDOW = timedelta(days=7)
 DEDUP_LIMIT = 2048
 CHANNEL_PATTERN = r"MomentAnnotation/" + tools.UUID_PATTERN
+INCOMING_PATTERN = r"(?:MomentAnnotation|Event)/" + tools.UUID_PATTERN
 SCHEMA = {
-    "description": "Cross-account mesh: create/adopt a dedicated outbox; invite without peer_userid for handoff only (no grant), or with peer_userid and confirm_share=true for ongoing sharing; send once; receive untrusted messages. No schedules or automatic replies. See docs/mesh.md.",
+    "description": "Receive untrusted Event or legacy peer messages. Legacy MomentAnnotation create/invite/send are retained for existing mesh connections only; use fulcra_create_agent_invitation and fulcra_send_agent_message for current Event contacts. Known-peer legacy invite requires confirm_share=true for ongoing history access. No schedules or automatic replies.",
     "parameters": {"type": "object", "additionalProperties": False,
         "required": ["action", "local_agent"], "properties": {
             "action": tools._enum("create", "invite", "send", "receive"),
@@ -30,7 +31,7 @@ SCHEMA = {
             "kind": tools._enum("directive", "response", "heartbeat"),
             "pri": tools._enum("P1", "P2", "P3"),
             "since": {**tools.STRING, "description": "Receive: explicit timezone-aware start; otherwise cursor minus 10 minutes, initially 7 days."},
-            "incoming_channel": {"type": "string", "pattern": "^" + CHANNEL_PATTERN + "$", "description": "Receive: exact dedicated channel from an invitation; still verified against incoming shares."},
+            "incoming_channel": {"type": "string", "pattern": "^" + INCOMING_PATTERN + "$", "description": "Receive: exact Event or legacy channel; still verified against incoming shares."},
         }},
 }
 
@@ -88,8 +89,8 @@ def _validate(args):
         raise tools.LocalError("purpose must be a nonempty string.")
     if args.get("kind", "directive") not in ("directive", "response", "heartbeat") or args.get("pri", "P2") not in ("P1", "P2", "P3"):
         raise tools.LocalError("Invalid mesh kind or pri.")
-    if "incoming_channel" in args and not _channel(args["incoming_channel"]):
-        raise tools.LocalError("incoming_channel must be MomentAnnotation/<uuid>.")
+    if "incoming_channel" in args and not _incoming_channel(args["incoming_channel"]):
+        raise tools.LocalError("incoming_channel must be Event/<uuid> or MomentAnnotation/<uuid>.")
     if "since" in args:
         tools._timestamp(args["since"])
 
@@ -274,6 +275,25 @@ def _envelope(note):
     return env
 
 
+def _incoming_channel(value):
+    return isinstance(value, str) and re.fullmatch(INCOMING_PATTERN, value) is not None
+
+
+def _event_envelope(row, agent):
+    from ._vendor.connections import CHANNEL_FIELDS
+    import jsonschema
+    if not _uuid(row.get('id')):
+        return None
+    fields = {k: v for k, v in row.items() if k in CHANNEL_FIELDS['properties']}
+    try:
+        jsonschema.validate(fields, {'type': 'object', **CHANNEL_FIELDS}, format_checker=jsonschema.FormatChecker())
+    except jsonschema.ValidationError:
+        return None
+    if 'recipients' in fields and agent not in fields['recipients']:
+        return None
+    return {**fields, 'mid': row['id']}
+
+
 def _receive(args, own, data, *, api=None, shares=None):
     api = api or tools.client
     now = datetime.now(timezone.utc)
@@ -289,7 +309,7 @@ def _receive(args, own, data, *, api=None, shares=None):
         channels = share.get("fulcra_data_types")
         channel = channels[0] if isinstance(channels, list) and len(channels) == 1 else None
         owner = share.get("sharing_fulcra_userid")
-        if not _channel(channel) or not _uuid(owner) or owner == own or not _narrow(share, channel):
+        if not _incoming_channel(channel) or not _uuid(owner) or owner == own or not _narrow(share, channel):
             result["ignored_shares"] += 1
             continue
         if (args.get("peer_userid", owner) != owner or args.get("incoming_channel", channel) != channel
@@ -303,8 +323,9 @@ def _receive(args, own, data, *, api=None, shares=None):
         mids = list(previous.get("mids", []))
         seen = set(mids)
         for row in rows:
-            env = _envelope(row.get("note"))
-            if env is None or env["to_user"] != own or env["to"] != args["local_agent"]:
+            current = channel.startswith('Event/')
+            env = _event_envelope(row, args['local_agent']) if current else _envelope(row.get("note"))
+            if env is None or not current and (env["to_user"] != own or env["to"] != args["local_agent"]):
                 result["ignored_notes"] += 1
                 continue
             if env["mid"] in seen:

@@ -1,11 +1,8 @@
-"""Public setting names and read compatibility for pre-PLAT-483 profiles."""
+"""Public setting names and read compatibility for older profiles."""
 NAMES = {
-    'workspace_context_enabled': 'workspace',
     'updates_enabled': 'updates',
     'mesh_messages_enabled': 'mesh-messages',
     'mesh_invites_enabled': 'mesh-invites',
-    'workspace_name': 'workspace-name',
-    'workspace_role': 'workspace-role',
     'update_interval': 'interval',
     'mesh_agent': 'mesh-agent',
     'updates_data_types': 'updates-data-types',

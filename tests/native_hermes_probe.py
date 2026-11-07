@@ -38,6 +38,7 @@ def child(source, probe):
     from hermes_cli.plugins_manifest import PluginManifest
     from hermes_constants import set_hermes_home_override, reset_hermes_home_override
     from tools.registry import registry
+    from test_contacts import ContactsTests, CHANNEL, MID
     root = Path(__file__).resolve().parents[1]
     spec = importlib.util.spec_from_file_location('native_runtime_plugin', root / '__init__.py', submodule_search_locations=[str(root)])
     plugin = importlib.util.module_from_spec(spec)
@@ -64,9 +65,27 @@ def child(source, probe):
                 assert entry.handler({}) == '[{"id": "fixture"}]'
                 factory.return_value.v1_catalog.assert_called_once_with()
             assert plugin.plugin_setup.Setup(context).command('status').startswith('Fulcra settings')
+            fixture = ContactsTests()
+            fixture.setUp()
+            try:
+                with patch.object(plugin.tools, 'client', return_value=fixture.api):
+                    send = registry.get_entry('fulcra_send_agent_message', scope=manager.scope_key)
+                    import json
+                    result = json.loads(send.handler(dict(connection=CHANNEL, sender='helper', body='Native probe', record_id=MID)))
+                    assert result['status'] == 'posted' and result['peer_acknowledged'] is False, result
+                    status = registry.get_entry('fulcra_set_contact_status', scope=manager.scope_key)
+                    from test_contacts import PEER
+                    assert json.loads(status.handler(dict(data_type=CHANNEL, peer_userid=PEER,
+                                                         attention=True, reason='Decision needed')))['verified'] is True
+                    update = registry.get_entry('fulcra_update_data_type', scope=manager.scope_key)
+                    assert json.loads(update.handler(dict(data_type=CHANNEL, name='Native contact')))['verified'] is True
+                    for tool in ('fulcra_create_agent_invitation', 'fulcra_accept_agent_invitation', 'fulcra_match_agent_invitations', 'fulcra_user_info'):
+                        assert registry.get_entry(tool, scope=manager.scope_key) is not None
+            finally:
+                fixture.doCleanups()
         finally:
             reset_hermes_home_override(token)
-    print('Native tool registration A→B→A: PASS')
+    print('Native registration and Event send/status/metadata handlers A→B→A: PASS')
 
 
 def main():
@@ -86,7 +105,7 @@ def main():
     elif args.doctor:
         probes = ('doctor',)
     for probe in probes:
-        with tempfile.TemporaryDirectory(prefix='plat510-', dir=os.environ['TMPDIR']) as directory:
+        with tempfile.TemporaryDirectory(prefix='fulcra-native-', dir=os.environ['TMPDIR']) as directory:
             root = Path(directory)
             home = root / 'home'
             home.mkdir()
