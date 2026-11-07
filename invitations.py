@@ -5,10 +5,11 @@ No automatic retries; a consumed invitation cannot authorize another grant.
 """
 import copy
 import json
+import math
 import re
 import threading
-import jsonschema
-from datetime import datetime, timezone
+
+from datetime import datetime, timezone, timedelta
 from uuid import uuid4
 
 from . import contacts as c
@@ -16,13 +17,32 @@ from . import contacts as c
 LOCK = threading.RLock()
 
 
-def history(api, owner, channel):
-    # Full history establishes FIRST message, not just first in a recent window.
-    end = datetime.now(timezone.utc).replace(microsecond=0)
-    duration = end - datetime(1, 1, 1, tzinfo=timezone.utc)
-    span = f'{duration.days}d{duration.seconds}s'
-    response = api.fulcra_v1_records(f'{{__name__="{channel}"}}[{span}] @ {int(end.timestamp())}', fulcra_userid=owner)
-    return [json.loads(line) for line in response.splitlines() if line.strip()]
+def timestamp(value):
+    if not isinstance(value, str):
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace('Z', '+00:00'))
+        return parsed if parsed.tzinfo is not None else None
+    except ValueError:
+        return None
+
+
+def history(api, owner, channel, entry=None):
+    if entry is None:
+        entry, = api.v1_catalog(data_type=channel, fulcra_userid=owner)
+    end = datetime.now(timezone.utc)
+    start = timestamp((entry.get('metadata') or {}).get('created_at')) or end - timedelta(days=365)
+    if start >= end:
+        return []
+    # PromQL durations use integer units; filter both rounded boundaries below.
+    anchor = math.ceil(end.timestamp())
+    seconds = math.ceil(anchor - start.timestamp())
+    days, seconds = divmod(seconds, 86400)
+    span = f'{days}d{seconds}s'
+    response = api.fulcra_v1_records(f'{{__name__="{channel}"}}[{span}] @ {anchor}', fulcra_userid=owner)
+    rows = [json.loads(line) for line in response.splitlines() if line.strip()]
+    # Keep undated rows for emptiness checks, but never as matching evidence.
+    return [row for row in rows if (stamp := timestamp(row.get('start_time'))) is None or start <= stamp < end]
 
 
 def save(api, own, channel, details, expected):
@@ -79,7 +99,7 @@ def accept(api, inviter_userid, topic, sender, introduction, response_channel=No
                 if not c.exact(response_channel, c.CHANNEL_PATTERN):
                     raise ValueError('Exact response channel required.')
                 entry = c.owned(api, own, response_channel)
-                if history(api, own, response_channel) or targeted(api, response_channel):
+                if history(api, own, response_channel, entry) or targeted(api, response_channel):
                     raise ValueError('Response channel must be empty and unshared.')
                 expected = c.metadata(entry.get('description'))
                 if expected.get('invitation') or expected.get('acceptance'):
@@ -139,24 +159,14 @@ def evidence(api, own, prefix='handshake'):
         if (c.metadata(entry.get('description')).get('invitation', {}).get('prefix') == 'open_invitation'
                 or entry.get('name') == 'connect-our-agents-standing-invitation'):
             continue
-        timed = []
-        for row in history(api, peer, channel):
-            stamp = datetime.fromisoformat(row['start_time'].replace('Z', '+00:00'))
-            if stamp.tzinfo is None:
-                raise ValueError('Uncertain first message.')
-            timed.append((stamp, row))
-        if not timed:
-            continue
-        first_time = min(t for t, _ in timed)
-        first = [r for t, r in timed if t == first_time]
-        if len(first) != 1 or first[0].get('kind') != 'message':
-            continue
-        fields = {k: v for k, v in first[0].items() if k in c.connections.CHANNEL_FIELDS['properties']}
-        jsonschema.validate(fields, {'type': 'object', **c.connections.CHANNEL_FIELDS},
-                            format_checker=jsonschema.FormatChecker())
-        topic = first[0].get('topic', '')
-        if isinstance(topic, str) and re.fullmatch(prefix + r' [0-9a-f]{32}', topic):
-            found.setdefault(topic.split(' ')[1], []).append((peer, channel))
+        for row in history(api, peer, channel, entry):
+            topic = row.get('topic', '')
+            if (timestamp(row.get('start_time')) is None or row.get('kind') != 'message'
+                    or not isinstance(topic, str) or not re.fullmatch(prefix + r' [0-9a-f]{32}', topic)):
+                continue
+            pairs = found.setdefault(topic.split(' ')[1], [])
+            if (peer, channel) not in pairs:
+                pairs.append((peer, channel))
     return found
 
 
@@ -265,7 +275,7 @@ def match(api):
             entries = [e for e in api.v1_catalog(fulcra_userid=own)
                        if e.get('fulcra_userid') == own and e.get('api_version') == 'v1'
                        and c.exact(e.get('id'), c.CHANNEL_PATTERN) and not e.get('deprecated') and not e.get('deleted_at')]
-            found = evidence(api, own)
+            found = None
             codes = [c.metadata(e.get('description')).get('invitation', {}).get('code') for e in entries]
             for entry in entries:
                 original = c.metadata(entry.get('description'))
@@ -280,6 +290,8 @@ def match(api):
                 if invite.get('prefix') == 'open_invitation':
                     results.extend(match_open(api, own, entry, original))
                     continue
+                if found is None:
+                    found = evidence(api, own)
                 pairs = found.get(code, [])
                 if len(pairs) != 1 and invite['state'] == 'prepared':
                     continue

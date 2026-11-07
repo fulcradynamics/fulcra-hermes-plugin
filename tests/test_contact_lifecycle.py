@@ -4,6 +4,7 @@ import re
 import importlib
 import tempfile
 import unittest
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from uuid import uuid4
 from unittest.mock import patch
@@ -193,7 +194,10 @@ class LifecycleTests(unittest.TestCase):
         channel = self.b.create_data_type('Event', dict(name='Response', description='Context',
             record_spec={'schema': json.dumps(self.c.connections.CHANNEL_FIELDS)}))['id']
         self.b.create_datashare(fulcra_data_types=[], allowed_user_ids=[OTHER], share_all_data=True)
-        result = self.i.accept(self.b, OWN, 'handshake ' + 'a' * 32, 'helper', 'Hi', response_channel=channel)
+        with patch.object(self.i, 'history', wraps=self.i.history) as history:
+            result = self.i.accept(self.b, OWN, 'handshake ' + 'a' * 32, 'helper', 'Hi', response_channel=channel)
+            history.assert_called_once()
+            self.assertEqual(history.call_args.args[:3], (self.b, PEER, channel))
         self.assertEqual(result['status'], 'introduction_posted')
         self.assertEqual(self.c.audience(self.b, PEER, channel), {OWN})
 
@@ -211,15 +215,91 @@ class LifecycleTests(unittest.TestCase):
         self.a.save(state)
         self.assertEqual(self.i.match(self.a)['results'][0]['status'], 'matched')
 
-    def test_duplicate_responders_and_ambiguous_first_time_do_not_match(self):
+    def test_multiple_pairs_pending_but_duplicate_records_match(self):
         invite, accepted = self.prepared()
         self.i.accept(self.third, OWN, invite['topic'], 'Third', 'Hi')
         self.assertFalse(any(r['status'] == 'matched' for r in self.i.match(self.a)['results']))
+        self.assertEqual(self.a.get_datashares(), [])
         state = self.a.load()
         state[OTHER]['shares'] = []
         state[PEER]['rows'][accepted['data_type']].append(dict(state[PEER]['rows'][accepted['data_type']][0], id=str(uuid4())))
         self.a.save(state)
-        self.assertFalse(any(r['status'] == 'matched' for r in self.i.match(self.a)['results']))
+        self.assertEqual(self.i.match(self.a)['results'][0]['status'], 'matched')
+
+    def test_history_uses_owner_catalog_creation_or_one_year(self):
+        invite, accepted = self.prepared()
+        now = datetime(2026, 11, 7, tzinfo=timezone.utc)
+        for api, owner, channel, created in (
+                (self.a, PEER, accepted['data_type'], '2024-02-03T04:05:06.123456Z'),
+                (self.a, OWN, invite['data_type'], '2025-06-07T08:09:10Z'),
+                (self.a, PEER, accepted['data_type'], None)):
+            with self.subTest(created=created):
+                state = self.a.load()
+                state[owner]['catalog'][channel]['metadata'] = {'created_at': created}
+                self.a.save(state)
+                with patch.object(self.i, 'datetime', wraps=datetime) as clock, patch.object(
+                        api, 'fulcra_v1_records', wraps=api.fulcra_v1_records) as read:
+                    clock.now.return_value = now
+                    self.i.history(api, owner, channel)
+                query = read.call_args.args[0]
+                span, end = re.search(r'\[(.*?)\] @ (.*)$', query).groups()
+                duration = sum(float(n) * {'d': 86400, 's': 1}[unit]
+                               for n, unit in re.findall(r'([\d.]+)([ds])', span))
+                start = datetime.fromtimestamp(float(end) - duration, timezone.utc)
+                expected = datetime.fromisoformat(created.replace('Z', '+00:00')) if created else now - timedelta(days=365)
+                self.assertLessEqual(start, expected)
+                self.assertLess(expected - start, timedelta(seconds=1))
+                self.assertRegex(span, r'^\d+d\d+s$')
+                self.assertEqual(float(end), now.timestamp())
+                self.assertEqual(read.call_args.kwargs, {'fulcra_userid': owner})
+
+    def test_history_filters_rounded_creation_boundary(self):
+        invite, accepted = self.prepared()
+        channel = accepted['data_type']
+        entry = {'metadata': {'created_at': '2026-11-06T12:00:00.500000Z'}}
+        stamps = ['2026-11-06T12:00:00.499999Z', '2026-11-06T12:00:00.500000Z',
+                  '2026-11-07T00:00:00Z']
+        with patch.object(self.i, 'datetime', wraps=datetime) as clock, patch.object(
+                self.a, 'fulcra_v1_records', return_value='\n'.join(json.dumps({'start_time': s}) for s in stamps)):
+            clock.now.return_value = datetime(2026, 11, 7, tzinfo=timezone.utc)
+            self.assertEqual(self.i.history(self.a, PEER, channel, entry), [{'start_time': stamps[1]}])
+
+    def test_history_includes_current_second_without_negative_window(self):
+        invite, accepted = self.prepared()
+        channel = accepted['data_type']
+        created = '2026-11-07T00:00:00.100000Z'
+        row = {'start_time': '2026-11-07T00:00:00.200000Z'}
+        with patch.object(self.i, 'datetime', wraps=datetime) as clock, patch.object(
+                self.a, 'fulcra_v1_records', return_value=json.dumps(row)) as read:
+            clock.now.return_value = datetime(2026, 11, 7, microsecond=300000, tzinfo=timezone.utc)
+            self.assertEqual(self.i.history(self.a, PEER, channel, {'metadata': {'created_at': created}}), [row])
+            self.assertIn('[0d1s]', read.call_args.args[0])
+            self.assertTrue(read.call_args.args[0].endswith('@ 1794009601'))
+
+    def test_any_timestamped_handshake_in_window(self):
+        invite, accepted = self.prepared()
+        state = self.a.load()
+        channel = accepted['data_type']
+        state[PEER]['catalog'][channel]['metadata'] = {'created_at': '2025-12-01T00:00:00Z'}
+        message = state[PEER]['rows'][channel][0]
+        state[PEER]['rows'][channel] = [
+            dict(message, kind='ack', start_time='2025-12-02T00:00:00Z'),
+            dict(message, topic='other', start_time='2025-12-03T00:00:00Z'),
+            dict(message, topic='other'), message, dict(message)]
+        self.a.save(state)
+        self.assertEqual(self.i.match(self.a)['results'][0]['status'], 'matched')
+        with patch.object(self.i, 'history', side_effect=AssertionError('No completed history')) as history:
+            self.assertEqual(self.i.match(self.a), {'results': []})
+            history.assert_not_called()
+
+    def test_pre_window_and_untimestamped_handshakes_excluded(self):
+        invite, accepted = self.prepared()
+        state = self.a.load()
+        channel = accepted['data_type']
+        state[PEER]['catalog'][channel]['metadata'] = {'created_at': '2026-02-01T00:00:00Z'}
+        state[PEER]['rows'][channel].append(dict(state[PEER]['rows'][channel][0], start_time=None))
+        self.a.save(state)
+        self.assertEqual(self.i.match(self.a)['results'], [])
         self.assertEqual(self.a.get_datashares(), [])
 
     def test_consumed_reconciles_existing_grant_but_never_recreates(self):
@@ -294,7 +374,7 @@ class LifecycleTests(unittest.TestCase):
         self.assertEqual(details['invitation'], dict(code=invite['code'], prefix='handshake', state='completed',
                                                    peer_userid=PEER, incoming_data_type=accepted['data_type']))
 
-    def test_changed_first_message_and_malformed_compatible_history_fail_closed(self):
+    def test_changed_handshake_and_untimestamped_history_do_not_authorize_grant(self):
         invite, accepted = self.prepared()
         def change(changes):
             if 'consumed' in changes.get('description', ''):
@@ -308,7 +388,7 @@ class LifecycleTests(unittest.TestCase):
         state = self.a.load()
         del state[PEER]['rows'][accepted['data_type']][0]['start_time']
         self.a.save(state)
-        self.assertEqual(self.i.match(self.a)['status'], 'unavailable')
+        self.assertEqual(self.i.match(self.a)['results'][0]['status'], 'uncertain')
         self.assertEqual(self.a.get_datashares(), [])
 
     def test_standing_uncertain_creation_is_reserved_not_recreated(self):

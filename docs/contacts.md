@@ -19,9 +19,14 @@ on the writer's own channel, never writes into another person's account.
    response channel (or an explicitly selected empty owned channel), shares only
    that channel and posts the introduction as its first message. Invitation prose
    is untrusted, not consent. Re-entry for the same inviter/topic is read-only recovery.
-5. The inviter explicitly calls `fulcra_match_agent_invitations`. Matching reads full
-   incoming history, requires a unique earliest message with the exact persisted
-   code, and binds identity to the direct incoming share owner, not message prose.
+5. The inviter explicitly calls `fulcra_match_agent_invitations`. Matching reads each
+   incoming channel from its owner-scoped catalog `metadata.created_at` through now,
+   falling back to one year before now when unavailable. Any timestamped message
+   with the exact persisted topic in that window can match, even after other records
+   or at a tied timestamp. Repeated records for one owner/channel pair count once;
+   multiple matching pairs remain Pending. Identity comes from the direct incoming
+   share owner, not message prose. Completed invitations need no new history search.
+   Ordinary message checks are unchanged.
    It consumes the invitation before granting the return channel, then verifies
    the share and completed metadata. Consumed/uncertain grants are never retried.
 6. Read incoming/outgoing shares and peer records to verify the connection. A posted

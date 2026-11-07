@@ -133,7 +133,7 @@ class ContactsTests(unittest.TestCase):
         self.api.create_datashare.assert_called_once()
         self.api.record_data_type.assert_called_once()
 
-    def test_match_requires_first_message_code_and_consumes_before_grant(self):
+    def test_match_accepts_later_message_and_consumes_before_grant(self):
         code = 'a' * 32
         details = {'version': 1, 'invitation': {'code': code, 'prefix': 'handshake', 'state': 'prepared'}}
         self.entry['description'] = 'Agent channel[agent_connection: ' + json.dumps(details) + ']Preserved text'
@@ -154,9 +154,6 @@ class ContactsTests(unittest.TestCase):
         later['start_time'] = '2026-01-02T00:00:00Z'
         self.rows[0]['topic'] = 'not the invitation'
         self.rows.append(later)
-        self.assertEqual(self.call('match_agent_invitations')['results'], [])
-        self.api.create_datashare.assert_not_called()
-        self.rows.pop(0)
         result = self.call('match_agent_invitations')
         self.assertEqual(result['results'][0]['status'], 'matched')
         self.assertIn('completed', self.entry['description'])
