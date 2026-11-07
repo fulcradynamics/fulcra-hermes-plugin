@@ -1,4 +1,4 @@
-# Extracted from fulcra-api-python 66949bac42920c841facd567a02d6d6c4e01e824; see PROVENANCE.md.
+# Extracted from fulcra-api-python 4a4769152e9770406fe66113e49e555f70db9201; see PROVENANCE.md.
 import base64
 import datetime
 import http.client
@@ -9,16 +9,33 @@ import os.path
 import urllib.parse
 import urllib.request
 from pathlib import PurePosixPath
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
-from urllib.error import HTTPError
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
+from urllib.error import HTTPError, URLError
 import jsonschema
+from . import record_validation
 from .credentials import FulcraCredentials
-from .oidc import FulcraOIDCProvider
+from .oidc import FulcraAuthError, FulcraOIDCProvider
+from .user_agent import build_user_agent
 FULCRA_OIDC_DOMAIN = os.environ.get('FULCRA_OIDC_DOMAIN', 'fulcra.us.auth0.com')
 FULCRA_OIDC_CLIENT_ID = os.environ.get('FULCRA_OIDC_CLIENT_ID', '48p3VbMnr5kMuJAUe9gJ9vjmdWLdnqZt')
 FULCRA_OIDC_AUDIENCE = os.environ.get('FULCRA_OIDC_AUDIENCE', 'https://api.fulcradynamics.com/')
 FULCRA_OIDC_SCOPE = os.environ.get('FULCRA_OIDC_SCOPE', 'openid profile name email offline_access')
+REFRESH_LEEWAY = datetime.timedelta(seconds=60)
 UNSET: Any = object()
+
+def _parse_ndjson(resp: bytes) -> List[Dict[str, Any]]:
+    return [json.loads(line) for line in resp.splitlines() if line.strip()]
+
+def _validation_message(error: jsonschema.ValidationError) -> str:
+    if record_validation.is_unknown_fields_error(error):
+        return record_validation.unknown_fields_message(error)
+    leaf = jsonschema.exceptions.best_match([error]) or error
+    message = leaf.message
+    if leaf.validator == 'format' and leaf.cause is not None:
+        message += f': {leaf.cause}'
+    if leaf.absolute_path:
+        message += f" (path: {'.'.join((str(p) for p in leaf.absolute_path))})"
+    return message
 
 def _boundary_timestamp(value: Any, name: str) -> Any:
     if value is UNSET or value is None:
@@ -40,9 +57,14 @@ class FulcraDataAccessMixin:
         return json.loads(resp)
 
 class FulcraAPI(FulcraDataAccessMixin):
+    fulcra_credentials: Optional[FulcraCredentials] = None
+    user_agent_extra: Optional[str] = None
 
-    def __init__(self, oidc_domain: Optional[str]=None, oidc_client_id: Optional[str]=None, oidc_scope: Optional[str]=None, oidc_audience: Optional[str]=None, access_token: Optional[str]=None, access_token_expiration: Optional[datetime.datetime]=None, refresh_token: Optional[str]=None, credentials: Optional[FulcraCredentials]=None, refresh_callback: Optional[Callable]=None):
-        self.oidc = FulcraOIDCProvider(domain=oidc_domain or FULCRA_OIDC_DOMAIN, client_id=oidc_client_id or FULCRA_OIDC_CLIENT_ID, scope=oidc_scope or FULCRA_OIDC_SCOPE, audience=oidc_audience or FULCRA_OIDC_AUDIENCE)
+    def __init__(self, oidc_domain: Optional[str]=None, oidc_client_id: Optional[str]=None, oidc_scope: Optional[str]=None, oidc_audience: Optional[str]=None, access_token: Optional[str]=None, access_token_expiration: Optional[datetime.datetime]=None, refresh_token: Optional[str]=None, credentials: Optional[FulcraCredentials]=None, refresh_callback: Optional[Callable]=None, credentials_store: Optional['CredentialsFile']=None, user_agent_extra: Optional[str]=None):
+        if user_agent_extra is not None:
+            self.user_agent_extra = user_agent_extra
+        self.user_agent = build_user_agent(self.user_agent_extra)
+        self.oidc = FulcraOIDCProvider(domain=oidc_domain or FULCRA_OIDC_DOMAIN, client_id=oidc_client_id or FULCRA_OIDC_CLIENT_ID, scope=oidc_scope or FULCRA_OIDC_SCOPE, audience=oidc_audience or FULCRA_OIDC_AUDIENCE, user_agent=self.user_agent)
         self.fulcra_credentials = credentials
         audience_url = urllib.parse.urlparse(self.oidc.audience)
         self.fulcra_api_domain = audience_url.hostname
@@ -63,24 +85,56 @@ class FulcraAPI(FulcraDataAccessMixin):
                 kwargs['refresh_token'] = refresh_token
             self.fulcra_credentials = FulcraCredentials(**kwargs)
         self.refresh_callback = refresh_callback
+        self.credentials_store = credentials_store
 
     def refresh_access_token(self) -> bool:
         if self.fulcra_credentials is None or self.fulcra_credentials.refresh_token is None:
             raise Exception('No refresh token available to refresh the access token.')
         try:
-            new_creds = self.oidc.refresh_credentials(self.fulcra_credentials)
+            self.refresh_credentials()
         except Exception:
             return False
+        return True
+
+    def refresh_credentials(self):
+        if self.credentials_store is None:
+            self._exchange_refresh_token()
+            return
+        held_token = self.fulcra_credentials.access_token
+        with self.credentials_store.lock():
+            stored = self.credentials_store.load()
+            if stored is not None and stored.refresh_token is not None:
+                self.fulcra_credentials = stored
+                if stored.access_token != held_token and (not stored.is_expired(REFRESH_LEEWAY)):
+                    return
+            self._exchange_refresh_token()
+            self.credentials_store.save(self.fulcra_credentials)
+
+    def _exchange_refresh_token(self):
+        new_creds = self.oidc.refresh_credentials(self.fulcra_credentials)
         if new_creds.refresh_token is None:
             new_creds.refresh_token = self.fulcra_credentials.refresh_token
         self.fulcra_credentials = new_creds
         if self.refresh_callback is not None:
             self.refresh_callback(self.fulcra_credentials)
-        return True
+
+    def refresh_if_expiring(self):
+        creds = self.fulcra_credentials
+        if creds is None or not creds.is_expired(REFRESH_LEEWAY):
+            return
+        if creds.refresh_token is None:
+            if creds.is_expired():
+                raise Exception('No refresh token available to refresh the access token.')
+            return
+        try:
+            self.refresh_credentials()
+        except FulcraAuthError:
+            if self.fulcra_credentials.is_expired():
+                raise
 
     def fulcra_api(self, url_path: str, method: str='GET', query: dict[str, str] | None=None, data: dict | List[dict] | None=None, return_http_response: bool=False, content_type: str='application/json', authenticated: bool=True) -> bytes | http.client.HTTPResponse:
-        if authenticated and self.fulcra_credentials is not None and self.fulcra_credentials.is_expired():
-            self.refresh_access_token()
+        if authenticated:
+            self.refresh_if_expiring()
         if self.fulcra_api_is_http:
             proto = 'http'
         else:
@@ -97,6 +151,7 @@ class FulcraAPI(FulcraDataAccessMixin):
             headers = {'Authorization': f'Bearer {self.fulcra_credentials.access_token}'}
         else:
             headers = {}
+        headers['User-Agent'] = self.user_agent
         if data is not None:
             headers['Content-Type'] = content_type
             if content_type == 'application/x-jsonl':
@@ -249,12 +304,19 @@ class FulcraAPI(FulcraDataAccessMixin):
     def delete_datashare(self, datashare_id: str):
         self.fulcra_api(f'/user/v1/datashare/{datashare_id}', method='DELETE')
 
-    def data_updates(self, start_time: str | datetime.datetime, end_time: str | datetime.datetime, fulcra_userid: str | None=None) -> dict:
+    def data_updates(self, start_time: str | datetime.datetime, end_time: str | datetime.datetime, fulcra_userid: str | None=None, include_shared: bool=False, max_peers: int | None=None) -> dict:
+        if fulcra_userid is not None and include_shared:
+            raise ValueError('Pass either fulcra_userid or include_shared, not both.')
+        if max_peers is not None and max_peers < 0:
+            raise ValueError("max_peers can't be negative.")
         params = {'start_time': start_time, 'end_time': end_time}
         if fulcra_userid is not None:
             params['fulcra_userid'] = fulcra_userid
         resp = self.fulcra_api('/data/v1/updates', query=params)
-        return json.loads(resp)
+        updates = json.loads(resp)
+        if include_shared:
+            updates.update(self._shared_data_updates(start_time, end_time, max_peers))
+        return updates
 
     def get_shared_datasets(self) -> List[Dict]:
         resp = self.fulcra_api('/user/v1/dataset')
@@ -319,21 +381,31 @@ class FulcraAPI(FulcraDataAccessMixin):
         resp = self.fulcra_api(f'user/v1alpha1/annotation/{annotation_id}/cancel_deletion', method='POST')
         return json.loads(resp)
 
+    def create_data_type(self, base_type: str, body: dict) -> dict:
+        resp = self.fulcra_api(f'/input/v1/data_type/{base_type}', data=body, method='POST')
+        return json.loads(resp)
+
+    def update_data_type(self, base_type: str, data_type_id: str, body: dict) -> dict:
+        resp = self.fulcra_api(f'/input/v1/data_type/{base_type}/{data_type_id}', data=body, method='PUT')
+        return json.loads(resp)
+
     def record_data_type(self, data_type: str, records: List[dict], api_version: str) -> dict:
         resp = self.fulcra_api(f'/ingest/v1/record/{data_type}', method='POST', query={'api_version': api_version}, data=records, content_type='application/x-jsonl')
         return json.loads(resp)
 
-    def validate_records(self, data_type: str, records: List[dict], api_version: str='v1alpha1') -> list[tuple[int, str, jsonschema.ValidationError]]:
+    def validate_records(self, data_type: str, records: List[dict], api_version: str='v1alpha1', *, allow_unknown_fields: bool=False) -> list[tuple[int, str, jsonschema.ValidationError]]:
         schema = self.v1_catalog_schema(data_type, api_version)
+        if not allow_unknown_fields:
+            schema = record_validation.strict_schema(schema)
+        validator = jsonschema.validators.validator_for(schema)(schema, format_checker=record_validation.record_format_checker(api_version))
+
+        def rank(e: jsonschema.ValidationError):
+            known = not record_validation.is_unknown_fields_error(e)
+            return (known, jsonschema.exceptions.relevance(e))
         errors = []
         for idx, record in enumerate(records):
-            try:
-                jsonschema.validate(instance=record, schema=schema, format_checker=jsonschema.FormatChecker())
-            except jsonschema.ValidationError as e:
-                error_msg = e.message
-                if e.path:
-                    error_msg += f" (path: {'.'.join((str(p) for p in e.path))})"
-                errors.append((idx, error_msg, e))
+            for e in sorted(validator.iter_errors(record), key=rank, reverse=True):
+                errors.append((idx, _validation_message(e), e))
         return errors
 
     def list_files(self, path: str='/', state: str='uploaded', fulcra_userid: str | None=None, base_name: str | None=None) -> dict:
@@ -376,7 +448,7 @@ class FulcraAPI(FulcraDataAccessMixin):
         resp = self.fulcra_api('/input/v1/file_upload', data=file_info, method='POST')
         r = json.loads(resp)
         upload_url = r['url']
-        req = urllib.request.Request(upload_url, data=data, headers={'Content-Length': file_size, 'Content-Type': file_type}, method='POST')
+        req = urllib.request.Request(upload_url, data=data, headers={'Content-Length': file_size, 'Content-Type': file_type, 'User-Agent': self.user_agent}, method='POST')
         upload_resp = self._open(req)
         return r
 
