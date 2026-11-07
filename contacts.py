@@ -119,7 +119,7 @@ def compatible(api, owner, channel):
 
 
 def metadata(description, *, with_span=False, field='connection'):
-    """Read the public named/legacy connection marker; fail closed on ambiguity."""
+    """Read public named or bracketed metadata; fail closed on ambiguity."""
     text = description or ''
     decoder = json.JSONDecoder()
     found = []
@@ -139,7 +139,7 @@ def metadata(description, *, with_span=False, field='connection'):
                 validate_status(value)
             if token.startswith('['):
                 if text[end:end + 1] != ']':
-                    raise ValueError('Invalid legacy metadata.')
+                    raise ValueError('Invalid bracketed metadata.')
                 end += 1
             elif end < len(text) and not text[end].isspace():
                 raise ValueError('Invalid metadata boundary.')

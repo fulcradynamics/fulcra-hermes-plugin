@@ -10,7 +10,7 @@ provides_tools:
   - fulcra_send_agent_message
   - fulcra_set_contact_status
   - fulcra_update_data_type
-  - fulcra_mesh
+  - fulcra_receive_agent_messages
   - fulcra_auth
   - fulcra_auth_device
   - fulcra_data_catalog

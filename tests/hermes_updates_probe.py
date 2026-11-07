@@ -48,7 +48,7 @@ def main():
         parser = argparse.ArgumentParser()
         plugin.plugin_setup.arguments(parser)
         options = {flag[2:] for action in parser._actions for flag in action.option_strings
-                   if flag.startswith('--') and flag not in ('--help', '--migrate')}
+                   if flag.startswith('--') and flag != '--help'}
         assert options == manifest['config_schema'].keys()
         assert list(manifest['config_schema']) == [plugin.settings.NAMES[k]
             for _, keys in plugin.plugin_setup.GROUPS for k in keys]
@@ -106,8 +106,8 @@ def main():
                     return json.dumps(dict(sharing_fulcra_userid=PEER, datashare_id=GRANT,
                                            grant_type='user', share_all_data=False, fulcra_data_types=[CHANNEL]))
                 assert argv[0] == 'get-records' and argv[-2:] == ['--user-id', PEER]
-                return json.dumps({'note': json.dumps(dict(v=1, mid=mesh_mid[0], to='helper', to_user=OWN,
-                    kind='response', pri='P2', slug='probe', body=home.name + '-mesh'))})
+                return json.dumps(dict(id=mesh_mid[0], sender='peer', recipients=['helper'],
+                    kind='message', priority='P2', topic='probe', body=home.name + '-mesh'))
             assert timeout == 30
             seen.append(home.name)
             return json.dumps(dict(start_time=argv[1], end_time=argv[2],
@@ -138,16 +138,10 @@ def main():
                     assert ctx.get_config('updates') is True
                     assert ctx.get_config('interval') == 60
                     assert yaml.safe_load((home / 'config.yaml').read_text())['plugins']['entries']['context']['settings']['updates'] is True
-                    unset = object()
-                    assert ctx.get_config('workspace_context_enabled', unset) is unset
-                    assert not pre('offer-cron', platform='cron', first=True)
+                    assert not pre('scheduled', platform='cron', first=True)
                     assert not pre('child', 'same-chat', first=True)
-                    assert ctx.get_config('workspace_context_enabled', unset) is unset
                     assert not pre()
-                    assert not pre('new-session', first=True)  # No first-session setup offer.
-                    assert ctx.state.get('setup-discovered.v1') is None
-                    saved = yaml.safe_load((home / 'config.yaml').read_text())
-                    assert 'workspace_context_enabled' not in saved['plugins']['entries']['context']['settings']
+                    assert not pre('new-session', first=True)
                     assert not stores[name].calls
                     assert not pre('another-session', first=True)
                     slash = get_plugin_command_handler('fulcra')
@@ -171,9 +165,7 @@ def main():
                     assert all(f['label'] != k and f['description'] for k, f in fields.items())
                     save_plugin_settings('context', Path(ctx.manifest.path), {'updates-include-files': False})
                     assert ctx.get_config('updates-include-files') is False
-                    assert 'workspace' not in fields
-                    ctx.set_config('updates_data_types', [name + '-type'])
-                    assert not slash('setup --migrate').startswith('Error:')
+                    assert not slash('setup --updates-data-types ' + name + '-type').startswith('Error:')
                     fields = {f['key']: f for f in plugin_settings_fields('context', Path(ctx.manifest.path))}
                     assert fields['updates-data-types']['value'] == [name + '-type']
                     assert 'false' in slash('status')
@@ -213,22 +205,17 @@ def main():
             for name in ('a', 'b', 'a'):
                 with scope(name) as home:
                     ctx = contexts[name]
-                    # Intentional standard config writes, isolated to disposable homes.
-                    ctx.set_config('workspace-name', 'work-' + name)
-                    ctx.set_config('workspace-role', 'researcher')
-                    ctx.set_config('workspace', True)
-                    saved = yaml.safe_load((home / 'config.yaml').read_text())
-                    assert saved['plugins']['entries']['context']['settings']['workspace-name'] == 'work-' + name
-                    stores[name].files['/workspace/existing/index.md'] = 'Preserve user content'
+                    stores[name].files['/notes/existing.md'] = 'Preserve user content'
+                    saved = (home / 'config.yaml').read_bytes()
                     before = stores[name].files.copy()
                     count = len(stores[name].calls)
-                    assert not pre('workspace-cron', platform='cron', first=True)
-                    assert not pre('workspace-child', parent='parent', first=True)
-                    assert not pre('workspace-ordinary')
-                    assert not pre('workspace-chat', first=True)
+                    assert not pre('scheduled', platform='cron', first=True)
+                    assert not pre('child', parent='parent', first=True)
+                    assert not pre('ordinary')
+                    assert not pre('new-chat', first=True)
                     assert stores[name].files == before
                     assert len(stores[name].calls) == count
-                    assert ctx.get_config('workspace') is True  # Saved user settings are not deleted.
+                    assert (home / 'config.yaml').read_bytes() == saved
             with scope('a'):
                 ctx = contexts['a']
                 assert not get_plugin_command_handler('fulcra')(
@@ -249,9 +236,9 @@ def main():
             manager.unload()
         print('PASS: real PluginContext/PluginState, config readback, hook dispatch, current-user context, '
               'A→B→A isolation, cross-session single delivery, copied worker/runtime scope, cron/child exclusion, cron writes remain visible, disable; '
-              'no first-session setup offer or discovery marker, registered slash/CLI setup, native settings recognition/readback, '
-              'automatic mesh message/invite notices and separate manual state, no workspace loading or seeding, '
-              'existing workspace files/settings preserved; network blocked.')
+              'registered slash/CLI setup, native settings recognition/readback, '
+              'automatic Event message/invite notices and separate manual state, '
+              'user files and config unchanged by turn hooks; network blocked.')
 
 
 if __name__ == '__main__':

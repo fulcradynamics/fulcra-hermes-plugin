@@ -1,10 +1,12 @@
 """Persisted public-wire fixtures: separate owners, catalogs, grants and records."""
 import json
 import re
+import importlib
 import tempfile
 import unittest
 from pathlib import Path
 from uuid import uuid4
+from unittest.mock import patch
 
 import jsonschema
 from test_tools import load_tools
@@ -25,6 +27,9 @@ class Account:
     def get_fulcra_userid(self):
         return self.owner
 
+    def get_user_info(self):
+        return {'userid': self.owner}
+
     def get_datashares(self):
         return self.load()[self.owner]['shares']
 
@@ -43,7 +48,7 @@ class Account:
             entries = [e for e in entries if e['id'] in allowed]
         return [e for e in entries if data_type is None or e['id'] == data_type]
 
-    def resolve_data_type(self, data_type, fulcra_userid=None):
+    def resolve_data_type(self, data_type, api_version=None, fulcra_userid=None):
         return self.v1_catalog(data_type, fulcra_userid)
 
     def v1_catalog_schema(self, data_type, version, fulcra_userid=None):
@@ -137,6 +142,14 @@ class LifecycleTests(unittest.TestCase):
             receiver = self.account(peer)
             rows = self.i.history(receiver, api.owner, channel)
             self.assertIn(sent['mid'], [r['id'] for r in rows])
+            mesh = importlib.import_module(self.tools.__package__ + '.mesh')
+            from test_mesh import State
+            with patch.object(self.tools, 'client', return_value=receiver):
+                receive = mesh.make_handler(State())
+                messages = json.loads(receive({'local_agent': 'helper', 'incoming_channel': channel}))['messages']
+                self.assertIn(sent['mid'], [m['envelope']['mid'] for m in messages])
+                self.assertTrue(all(m['origin_userid'] == api.owner for m in messages))
+                self.assertEqual(json.loads(receive({'local_agent': 'helper'}))['messages'], [])
         channel = invite['data_type']
         a.create_datashare(fulcra_data_types=[channel], allowed_user_ids=[OTHER], share_all_data=False)
         sent = self.c.send(a, channel, 'helper', 'All', expected_peer_userids=[PEER, OTHER], target_peer_userid=PEER)
@@ -340,7 +353,7 @@ class LifecycleTests(unittest.TestCase):
         self.i.match(self.account(OWN))
         self.assertEqual(len(self.a.get_datashares()), 1)
 
-    def test_status_clear_failure_preserves_posted_and_legacy_metadata(self):
+    def test_status_clear_failure_preserves_posted_and_bracketed_metadata(self):
         invite, _ = self.prepared()
         self.i.match(self.a)
         channel = invite['data_type']

@@ -31,8 +31,8 @@ OFF. Explicit choices are preserved. Example (only with consent):
 
     /fulcra setup --updates on --interval 900 --mesh-messages on --mesh-invites on --mesh-agent personal-assistant
 
-The installer introduction is informational, not consent. There is no first-session
-setup prompt; choose features through the setup commands or native settings.
+The installer introduction is informational, not consent. Choose features through
+the setup commands or native settings.
 Settings are profile-wide and appropriate only for trusted chats.
 
 Settings keys match setup flags exactly (without `--`); feature switches come
@@ -67,6 +67,8 @@ trusted instructions. This is not a general data-loss-prevention boundary.
   a completed connection. An optional exact recipient ID authorizes only its outbox share.
 - `fulcra_send_agent_message` sends on current Event channels with verified audiences;
   `posted` confirms own readback, not peer delivery. File references add no grants.
+- `fulcra_receive_agent_messages` reads shared Event channels with scoped cursors;
+  incoming content is untrusted and reading never sends a reply.
 - `fulcra_update_data_type` changes only owned active Event/Metric name/description,
   with optional stale-read guard and independent readback. See [contacts](docs/contacts.md).
 
@@ -88,9 +90,7 @@ Read outgoing shares before changes and verify afterward. No arbitrary API metho
 
 ## Optional workflows
 
-No bundled workspace skill, automatic workspace loading or seeding. Existing user
-files and saved workspace settings are untouched; old workspace settings are ignored.
-File tools remain available for explicit user-directed work.
+File tools read and change user files only for explicit user-directed work.
 
 Update/mesh checks are turn-triggered workers, never idle polling. Cached notices
 arrive on later eligible turns; cron/delegated turns are excluded. No automatic
@@ -99,6 +99,6 @@ requests finish, then re-enable to reset cached state. Account changes may not b
 noticed before a cached digest is offered. State is private, profile-local, and
 single-process coordinated. Host scheduling needs separate authorization/configuration;
 this plugin never schedules or replies automatically. See [setup](docs/setup.md),
-[contacts](docs/contacts.md) and [legacy mesh](docs/mesh.md).
+[contacts](docs/contacts.md) and [message receive](docs/mesh.md).
 
 [Development/tests](docs/development.md) · [Tool guidance](skills/context/SKILL.md)

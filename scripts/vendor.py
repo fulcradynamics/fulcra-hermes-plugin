@@ -62,6 +62,11 @@ def extract(source, name):
         keep = {'_uuid', 'build_message'}
         tree.body = [n for n in tree.body if not isinstance(n, ast.FunctionDef) or n.name in keep]
         tree.body = [n for n in tree.body if not isinstance(n, ast.ImportFrom) or not (n.module or '').startswith('fulcra_api')]
+        constants = {'CHANNEL_FIELDS', 'MAX_BODY'}
+        tree.body = [n for n in tree.body if not isinstance(n, ast.Assign)
+                     or any(isinstance(t, ast.Name) and t.id in constants for t in n.targets)]
+        tree.body = [n for n in tree.body if not (isinstance(n, ast.Import) and any(a.name == 'datetime' for a in n.names))
+                     and not (isinstance(n, ast.ImportFrom) and n.module == 'urllib.error')]
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom) and (node.module or '').startswith('fulcra_api.'):
             node.module, node.level = node.module.removeprefix('fulcra_api.'), 1

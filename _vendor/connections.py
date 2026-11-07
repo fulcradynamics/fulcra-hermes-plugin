@@ -12,17 +12,11 @@ Like ``records``, this module sits between the transport (``core``) and the
 front-ends (the CLI, the MCP server): functions take a ``FulcraAPI`` as their
 first argument, return plain data, and raise plain ``ValueError``.
 """
-import datetime
-from urllib.error import HTTPError
 from uuid import UUID, uuid4
 import jsonschema
 import jsonschema.exceptions
-SHARE_NAME_PREFIX = 'connect-our-agents'
-LEGACY_SHARE_NAME_PREFIXES = ('connect-agents-with-anyone',)
 CHANNEL_FIELDS = {'properties': {'sender': {'type': 'string', 'minLength': 1, 'maxLength': 128, 'description': 'Name of the agent contact that wrote the message'}, 'kind': {'type': 'string', 'enum': ['message', 'reply', 'ack'], 'description': 'message starts something; reply answers one; ack says you have read one'}, 'body': {'type': 'string', 'minLength': 1, 'maxLength': 4000, 'description': 'The message text'}, 'recipients': {'type': 'array', 'minItems': 1, 'maxItems': 32, 'items': {'type': 'string', 'minLength': 1, 'maxLength': 128}, 'description': 'Agent names the message is for; leave out for everyone in the connection'}, 'topic': {'type': 'string', 'minLength': 1, 'maxLength': 128, 'description': 'Short thread name; replies reuse it'}, 'in_reply_to': {'type': 'string', 'format': 'uuid', 'description': 'The id of the message being answered or acknowledged'}, 'priority': {'type': 'string', 'enum': ['P1', 'P2', 'P3'], 'description': 'P1 urgent, P2 normal, P3 low'}, 'artifacts': {'type': 'array', 'maxItems': 32, 'description': 'Files the message points to, shared separately', 'items': {'type': 'object', 'required': ['path'], 'properties': {'path': {'type': 'string', 'minLength': 1}, 'version': {'type': 'string', 'minLength': 1, 'description': 'File version or content hash, if it matters which one'}, 'owner': {'type': 'string', 'format': 'uuid', 'description': 'Fulcra user ID of the account holding the file, if not the sender'}}}}}, 'required': ['sender', 'kind', 'body']}
 MAX_BODY = CHANNEL_FIELDS['properties']['body']['maxLength']
-PRIORITIES = tuple(CHANNEL_FIELDS['properties']['priority']['enum'])
-REPLY_LOOKBACK = datetime.timedelta(days=30)
 
 def _uuid(value: str, what: str) -> str:
     try:

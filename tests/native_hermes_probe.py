@@ -55,7 +55,6 @@ def child(source, probe):
             before = sorted(home.rglob('*'))
             plugin.register(context)
             assert sorted(home.rglob('*')) == before
-            assert context.get_config('workspace_context_enabled', False) is False
             entry = registry.get_entry('fulcra_data_catalog', scope=manager.scope_key)
             signed_out = entry.handler({})
             assert 'not signed in' in signed_out, signed_out

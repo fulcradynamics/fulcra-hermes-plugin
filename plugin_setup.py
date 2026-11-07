@@ -41,9 +41,6 @@ def arguments(parser):
             else:
                 options['metavar'] = 'NAME'
             group.add_argument('--' + settings.NAMES[key], **options)
-    parser.add_argument_group('Upgrade').add_argument(
-        '--migrate', action='store_true', default=argparse.SUPPRESS,
-        help='Copy saved legacy choices to the new setting names; preserve explicit new values.')
 
 
 class Setup:
@@ -74,7 +71,7 @@ class Setup:
     def cli(self, args):
         """Apply explicit native CLI choices and print their readback."""
         # Only our namespace keys, not Hermes's global parser options.
-        values = {k: v for k, v in vars(args).items() if k in SETTINGS or k in ('action', 'migrate')}
+        values = {k: v for k, v in vars(args).items() if k in SETTINGS or k == 'action'}
         try:
             text = self.apply(values)
         except (ValueError, OSError) as exc:
@@ -87,13 +84,10 @@ class Setup:
         action = args.pop('action', 'setup')
         if action != 'setup' and args:
             raise ValueError('Only setup accepts settings flags')
-        migrate = args.pop('migrate', False)
-        if not args and not migrate:
+        if not args:
             return self.status()
         changes = {k: (v == 'on' if SETTINGS[k]['type'] == 'boolean' else v) for k, v in args.items()}
         with updates._lock(self.ctx):
-            if migrate:
-                changes = {**settings.legacy(self.ctx), **changes}
             current = {k: settings.get(self.ctx, k, spec['default']) for k, spec in SETTINGS.items()}
             merged = {**current, **changes}
             # Validate the complete proposed configuration before the first config write.
@@ -112,8 +106,6 @@ class Setup:
     def status(self):
         """Show current grouped values and available setup controls."""
         lines = ['Fulcra settings (active profile; trusted chats only):']
-        if settings.legacy(self.ctx):
-            lines.append('Legacy settings are active. Run /fulcra setup --migrate before using the native settings form.')
         for group, keys in GROUPS:
             lines.append(group + ':')
             for key in keys:

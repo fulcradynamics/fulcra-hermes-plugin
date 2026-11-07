@@ -35,9 +35,9 @@ These separately invoke catalog validation, doctor discovery/registration and na
 Catalog validation uses a recording context without runtime state; defer state access
 until a registered handler runs. Doctor alone does not exercise this contract.
 The bootstrap-only stub prevents provisioning; real PluginContext, native settings,
-slash/CLI registration and hook dispatch remain in use. Probes verify the absence
-of a first-session setup offer and workspace loading/seeding while retaining
-update/message behavior and preserving existing user files and saved settings.
+slash/CLI registration and hook dispatch remain in use. Probes verify Event
+send/receive and update notices, read-only startup, and turn hooks that leave
+user files and saved configuration unchanged.
 
 ## Architecture and limits
 

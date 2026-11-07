@@ -8,8 +8,8 @@ License: Apache-2.0; Copyright 2025 Fulcra Dynamics. Full upstream terms retaine
 checkout is at the pinned revision first. The explicit method allowlist in that
 script is the extraction inventory. Files derive from `fulcra_api/{core,oidc,
 credentials,records,connections,record_validation,user_agent}.py`, not CLI parsers.
-No upstream file is modified. Connections retains only the canonical channel fields
-and message builder/UUID helper, not upstream send/discovery workflows. The extracted
+No upstream file is modified. Connections retains the canonical channel fields,
+body limit and message builder/UUID helper, not unused constants or send/discovery workflows. The extracted
 package reports version `unknown`, like an uninstalled upstream source checkout.
 
 Changes:

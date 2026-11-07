@@ -20,7 +20,4 @@ Use `/fulcra setup --help`, `hermes fulcra setup --help`, or Desktop → Capabil
 does not schedule checks or automatically accept, share, send or reply. Host
 scheduling requires separate explicit authorization and configuration.
 
-Existing user files are preserved. No workspace skill, automatic workspace loading
-or seeding is bundled.
-
 [Setup](https://github.com/fulcradynamics/fulcra-hermes-plugin/blob/main/docs/setup.md) · [Contacts](https://github.com/fulcradynamics/fulcra-hermes-plugin/blob/main/docs/contacts.md)

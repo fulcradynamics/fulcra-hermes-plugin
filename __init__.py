@@ -12,7 +12,7 @@ def register(ctx):
     plugin_setup.register(ctx)
     mesh_updates.register(ctx)
     updates.register(ctx)
-    ctx.register_tool(name="fulcra_mesh", toolset="context", schema=mesh.SCHEMA,
+    ctx.register_tool(name="fulcra_receive_agent_messages", toolset="context", schema=mesh.SCHEMA,
                       handler=lambda args, **kwargs: mesh.make_handler(ctx.state)(args, **kwargs))
 
     skills_dir = Path(__file__).parent / "skills"

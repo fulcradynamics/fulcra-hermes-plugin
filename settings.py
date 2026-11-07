@@ -1,4 +1,4 @@
-"""Public setting names and read compatibility for older profiles."""
+"""Canonical persisted setting names for native and command setup."""
 NAMES = {
     'updates_enabled': 'updates',
     'mesh_messages_enabled': 'mesh-messages',
@@ -13,15 +13,5 @@ NAMES = {
 
 
 def get(ctx, key, default=None):
-    """Explicit new values, including false/empty, override legacy values."""
-    missing = object()
-    value = ctx.get_config(NAMES[key], missing)
-    return ctx.get_config(key, default) if value is missing else value
-
-
-def legacy(ctx):
-    """Only saved old choices without a new-key override need copying."""
-    missing = object()
-    return {key: value for key, name in NAMES.items()
-            if ctx.get_config(name, missing) is missing
-            and (value := ctx.get_config(key, missing)) is not missing}
+    """Read the canonical persisted key."""
+    return ctx.get_config(NAMES[key], default)

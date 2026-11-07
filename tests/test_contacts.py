@@ -5,7 +5,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 from test_tools import load_tools
-from test_updates import Context, load_plugin
+from test_updates import load_plugin
 
 OWN = '11111111-1111-4111-8111-111111111111'
 PEER = '22222222-2222-4222-8222-222222222222'
@@ -223,14 +223,3 @@ class ContactsTests(unittest.TestCase):
         self.assertEqual(result['messages'][0]['envelope']['mid'], MID)
         self.assertTrue(result['untrusted_peer_content'])
         self.assertEqual(plugin.mesh_updates._candidates([share], OWN), [share])
-
-    def test_workspace_removed_without_touching_saved_settings_or_files(self):
-        plugin = load_plugin()
-        ctx = Context()
-        ctx.config.update(workspace=True, **{'workspace-name': 'existing'})
-        before = copy.deepcopy(ctx.config)
-        plugin.register(ctx)
-        self.assertNotIn('workspace_context_enabled', plugin.plugin_setup.SETTINGS)
-        self.assertTrue(plugin.plugin_setup.Setup(ctx).command('setup --workspace on').startswith('Error:'))
-        self.assertEqual(ctx.config, before)
-        self.assertFalse(hasattr(plugin, 'workspace'))
