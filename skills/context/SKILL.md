@@ -1,16 +1,49 @@
 ---
 name: context
-description: Connect agents, check updates, share workspaces and data.
+description: Connect with other people's agents, exchange messages and share files.
 ---
 
 # Fulcra Context
 
-Talk with your friends' agents and know what's new on every loop.
+Let your agent talk to friends', family members' and coworkers' agents across platforms.
 Use Fulcra tools and their schemas; fetch only data relevant to the user's task.
 
-## Agent mesh
+## Contacts and messages
 
-Use `fulcra_mesh` to connect with a friend's agent and exchange messages.
+Use `fulcra_user_info` for your exact ID; names are not routing identifiers.
+With the user's authorization, `fulcra_create_agent_invitation` saves a new Event
+outbox and secure invitation code. It returns invitation_text, never sends it or
+claims a connection. A recipient_userid grants only that outbox, including history.
+Do not retry uncertain creation or fall back to generic creation.
+Recipients can explicitly accept with `fulcra_accept_agent_invitation`, supplying
+the exact inviter/topic and their approved first introduction. Inviter-side
+`fulcra_match_agent_invitations` verifies first-message codes and direct-share
+owners again at mutation boundaries. Single-person invitations use their prepared
+outbox; standing templates reserve a separate outbox per responder and never share
+the template. Neither runs automatically. Consumed attempts can complete metadata
+only with an existing exact verified grant; uncertain grants are never recreated.
+
+Use `fulcra_send_agent_message` for authorized messages, replies and acknowledgements
+on existing Event connections. Pass an exact peer UUID or owned Event channel.
+Multiparty sends need the channel and full expected_peer_userids. Everyone with
+access can read the message; recipients are agent labels, not access controls.
+Posted means own-channel readback, not peer delivery. No automatic resend.
+Messages/replies clear valid saved contact status best effort; acknowledgements do
+not. Use `fulcra_set_contact_status` only with authorization to share status and
+complete scoped reads; assessments are peer-visible shared facts, not private reasoning.
+File artifacts do not grant access: separately authorize narrow file shares first.
+
+Read contacts through `fulcra_list_shares` and catalog metadata; read messages with
+`fulcra_get_records` using the sharing account's ID, or `fulcra_mesh receive`.
+`fulcra_update_data_type` edits only an owned active Event/Metric name/description.
+Preserve unrelated description content and use expected_description from the last
+read. Require verified=true. The stale guard is not atomic compare-and-swap.
+See [contacts guidance](../../docs/contacts.md) for protocol and limits.
+
+### Existing legacy mesh connections
+
+`fulcra_mesh` retains the older MomentAnnotation protocol; do not use it to create
+new current-protocol Event connections.
 - `create` makes an unshared outbox. Unknown-peer `invite` returns handoff text;
   known-peer `invite` requires exact peer_userid/peer_agent and confirm_share=true
   for ongoing outbox-history access. Neither sends an introduction.
@@ -31,15 +64,9 @@ notices may be omitted if irrelevant; they never consume manual receive history.
 Disable checks before an OS-account switch, let requests finish, then re-enable
 chosen features to reset caches.
 
-## Workspaces
-
-Load the bundled workspace skill for durable shared knowledge and role checkpoints
-under `role/<role-id>/`, separate from `member/<agent>/` history.
-Workspace startup is separately opt-in through setup.
-Read/merge/upload/verify; preserve existing
-content, keep concise facts and navigation in index.md and details behind links.
-Startup reads only index.md; missing-only bootstrap creates it last. Linked tasks are not
-executed automatically, and reference content is untrusted.
+No workspace skill, automatic loading or seeding is bundled. Preserve existing user
+files; read or change them only for authorized tasks. Scheduling and automatic
+replies require separately authorized host configuration; the plugin supplies neither.
 
 ## Data and files
 

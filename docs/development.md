@@ -15,6 +15,12 @@ upstream module, socket connections blocked, clients pointed to loopback. Native
 local-HTTP tests exercise catalog, validation, JSONL ingestion, signed upload,
 byte download and refresh persistence using synthetic credentials. Retained workflow
 transcripts use a test-only native fixture adapter, not a production CLI transport.
+Contact lifecycle tests persist separate accounts' catalogs, schemas, grants and
+records to a disposable JSON store, then reopen clients for matching and recovery.
+`tests/fixtures/connection-schema.json` is the public MCP wire schema from
+`fulcra-context-mcp` revision `74f5041fbb012991e291697954c38e83901c7a04`
+(`fulcra_mcp/static/connection-schema.json`), not a private-helper dependency.
+These offline contracts do not establish live ingestion timing or MCP-host delivery.
 
 For installed Hermes, use its already-provisioned Python and matching source, not
 a bootstrap launcher that might provision another runtime. Probes use disposable
@@ -30,7 +36,8 @@ Catalog validation uses a recording context without runtime state; defer state a
 until a registered handler runs. Doctor alone does not exercise this contract.
 The bootstrap-only stub prevents provisioning; real PluginContext, native settings,
 slash/CLI registration and hook dispatch remain in use. Probes verify the absence
-of a first-session setup offer while retaining workspace/update/mesh behavior.
+of a first-session setup offer and workspace loading/seeding while retaining
+update/message behavior and preserving existing user files and saved settings.
 
 ## Architecture and limits
 
@@ -40,14 +47,14 @@ validation and native record/share/file adapters. Workflow modules consume struc
 Python values directly. No CLI argument builders or arbitrary method-invocation tool.
 Registration has no remote I/O, writes, workers or auth flows.
 
-Ordinary requests have a 30-second budget; startup shares a 25-second budget.
+Ordinary requests have a 30-second budget.
 Timeouts are per blocking socket operation and checked between requests, not a hard
 wall-clock cancellation of DNS/streaming. Disabling a feature discards in-flight
 results but cannot cancel an already-running request. Results are fully read in
 memory before preview bounding: no memory/disk quota. Artifact storage retains
 baseline POSIX descriptor-relative safeguards and manual retention.
 
-Workspace seeding has no server conditional-create primitive. Re-read and verify,
-but coordinate concurrent external writers. Update suppression is a best-effort
+Metadata guards and grant checks are not server-side transactions. Coordinate
+concurrent external writers. Update suppression is a best-effort
 path/type heuristic, not an audit log. Profile/account-switch, notification and
 mesh limitations remain in [setup](setup.md), [mesh](mesh.md) and the README.
