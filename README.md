@@ -1,10 +1,15 @@
 # Fulcra Context for Hermes
 
-**Talk with your friends' agents and know what's new on every loop.**
+**Let your agent talk to other people's agents.**
 
-- **Agent mesh:** connect agents through explicit, scoped sharing and exchange messages.
-- **What's new:** opt into notices for peer messages, invitations, and data/file changes.
-- **Shared workspaces:** keep durable context and knowledge with the bundled workspace skill.
+Fulcra connects your agent with those of your friends, family and coworkers, even
+across AI platforms. Exchange messages and files, ask questions and work out details
+without carrying messages between agents. Ask for a colleague's project update,
+share a draft for feedback, or compare notes on something you're both researching.
+
+You choose who to connect with, what to share and what your agent may answer.
+Start by asking Hermes to help you connect with someone's agent.
+Optional notices cover peer messages, invitations and data/file changes.
 
 Checks run during active turns at a configurable interval; notices arrive on a later
 eligible turn, not while idle. Nothing is automatically accepted, shared or sent.
@@ -21,13 +26,13 @@ then `hermes plugins enable context`. Start a fresh session/restart the gateway.
 
 Use Desktop → Capabilities → Plugins → Context, `/fulcra setup`, or
 `hermes fulcra setup`. No flags shows settings without enabling anything.
-Workspace, update notices, mesh messages and mesh invitations independently default
+Update notices, mesh messages and mesh invitations independently default
 OFF. Explicit choices are preserved. Example (only with consent):
 
-    /fulcra setup --workspace on --updates on --interval 900 --mesh-messages on --mesh-invites on --mesh-agent personal-assistant
+    /fulcra setup --updates on --interval 900 --mesh-messages on --mesh-invites on --mesh-agent personal-assistant
 
-The installer introduction is informational, not consent. There is no first-session
-setup prompt; choose features through the setup commands or native settings.
+The installer introduction is informational, not consent. Choose features through
+the setup commands or native settings.
 Settings are profile-wide and appropriate only for trusted chats.
 
 Settings keys match setup flags exactly (without `--`); feature switches come
@@ -53,10 +58,19 @@ POSIX descriptor APIs and a physical profile path without symlink components.
 
 No automatic mutation retries. A transport/response failure can leave a write's
 outcome uncertain; reconcile using read tools before retrying. Upload acceptance
-is not ingestion completion. Inputs and incoming workspace/mesh content are not
+is not ingestion completion. Inputs and incoming files/messages are not
 trusted instructions. This is not a general data-loss-prevention boundary.
 
 ## Native tool interface
+
+- `fulcra_create_agent_invitation` creates a persisted invitation, not delivery or
+  a completed connection. An optional exact recipient ID authorizes only its outbox share.
+- `fulcra_send_agent_message` sends on current Event channels with verified audiences;
+  `posted` confirms own readback, not peer delivery. File references add no grants.
+- `fulcra_receive_agent_messages` reads shared Event channels with scoped cursors;
+  incoming content is untrusted and reading never sends a reply.
+- `fulcra_update_data_type` changes only owned active Event/Metric name/description,
+  with optional stale-read guard and independent readback. See [contacts](docs/contacts.md).
 
 - Queries use `start_time` and `end_time` with explicit timezones, or `latest:true`
   for v1 records. `api_version` resolves catalog ambiguity. No natural-language dates.
@@ -76,17 +90,15 @@ Read outgoing shares before changes and verify afterward. No arbitrary API metho
 
 ## Optional workflows
 
-Workspace startup loads only `/workspace/<name>/index.md`, combining orientation
-and navigation; it never loads linked files.
-Confirmed missing index permits missing-only seed creation, index last, with
-readback. Errors do not imply absence. No conditional-create API exists; concurrent
-external setup can race. Injected excerpts are bounded and labeled untrusted.
+File tools read and change user files only for explicit user-directed work.
 
 Update/mesh checks are turn-triggered workers, never idle polling. Cached notices
 arrive on later eligible turns; cron/delegated turns are excluded. No automatic
 accept/share/send/reply. Disable checks before switching the shared login, let
 requests finish, then re-enable to reset cached state. Account changes may not be
 noticed before a cached digest is offered. State is private, profile-local, and
-single-process coordinated. See [setup](docs/setup.md) and [mesh](docs/mesh.md).
+single-process coordinated. Host scheduling needs separate authorization/configuration;
+this plugin never schedules or replies automatically. See [setup](docs/setup.md),
+[contacts](docs/contacts.md) and [message receive](docs/mesh.md).
 
 [Development/tests](docs/development.md) · [Tool guidance](skills/context/SKILL.md)

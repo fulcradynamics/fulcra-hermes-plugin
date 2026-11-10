@@ -1,4 +1,4 @@
-# Extracted from fulcra-api-python 66949bac42920c841facd567a02d6d6c4e01e824; see PROVENANCE.md.
+# Extracted from fulcra-api-python 4a4769152e9770406fe66113e49e555f70db9201; see PROVENANCE.md.
 """High-level record-fetching operations.
 
 This module sits above the transport layer (the client classes in ``core``) and
@@ -16,10 +16,16 @@ from uuid import UUID
 from .core import FulcraGroupParticipant
 
 def build_v1_promql(data_type_id: str, start_time: datetime | None=None, end_time: datetime | None=None, *, latest: bool=False) -> str:
+    selector = f'{{__name__="{data_type_id}"}}' if '/' in data_type_id else data_type_id
     if latest:
-        return data_type_id
+        return selector
     duration = max(1, int((end_time - start_time).total_seconds()))
-    return f'{data_type_id}[{duration}s] @ {int(end_time.timestamp())}'
+    timestamp = int(end_time.timestamp())
+    if timestamp < 0:
+        days, seconds = divmod(-timestamp, 86400)
+        offset = (f'{days}d' if days else '') + (f'{seconds}s' if seconds else '')
+        return f'{selector}[{duration}s] @ 0 offset {offset}'
+    return f'{selector}[{duration}s] @ {timestamp}'
 
 def _owner_scope(source, data_type: dict):
     if isinstance(source, FulcraGroupParticipant):
@@ -40,7 +46,7 @@ def get_records(source, data_type: dict, start_time: datetime | None, end_time: 
         try:
             annotation_id = UUID(parts[1])
         except ValueError:
-            raise ValueError('User configured annotation shorthand must be <Annotation Type>/<UUID>')
+            raise ValueError(f"Custom data type '{data_type['id']}' must be written <Base Type>/<UUID>")
     owner = _owner_scope(source, data_type)
     if api_version == 'v0' and record_type == 'metric':
         kwargs = {'start_time': start_time, 'end_time': end_time, 'metric': data_type['id']}
@@ -58,7 +64,7 @@ def get_records(source, data_type: dict, start_time: datetime | None, end_time: 
     if api_version == 'v1' and record_type in ('metric', 'event'):
         if isinstance(source, FulcraGroupParticipant):
             raise ValueError('Group participant queries are not supported for v1 data types.')
-        query = build_v1_promql(base_type, start_time, end_time, latest=latest)
+        query = build_v1_promql(data_type['id'], start_time, end_time, latest=latest)
         resp = source.fulcra_v1_records(query, fulcra_userid=owner)
         return _as_records(resp, jsonl=True)
     raise ValueError(f"Could not derive API endpoint for data type '{data_type['id']}'")

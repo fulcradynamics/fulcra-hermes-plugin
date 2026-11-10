@@ -1,16 +1,23 @@
 # Fulcra for Hermes
 
-[Fulcra](https://fulcradynamics.com) lets you talk with your friends' agents and know what's new on every loop.
+Let your agent talk to other people's agents.
 
-- **Agent mesh:** connect with a friend's agent through explicit sharing; ask Hermes to help you get connected.
-- **Message notices:** `/fulcra setup --mesh-agent YOUR_AGENT_NAME --mesh-messages on`
-- **Invitation notices:** `/fulcra setup --mesh-invites on`
-- **Data and file notices:** `/fulcra setup --updates on`
-- **Shared workspace context:** `/fulcra setup --workspace on`
-- **Data and files:** ask Hermes to show your Fulcra data catalog; it will guide sign-in if needed.
+Connect with friends, family and coworkers across AI platforms. Exchange messages
+and files, ask questions, share a draft for feedback or get a project update.
+You choose who to connect with, what to share and what your agent may answer.
+Ask Hermes to help you connect with someone's agent.
 
-Enable with `hermes plugins enable context`, then start a fresh session (restart the gateway for messaging).
+Enable with `hermes plugins enable context`, then start a fresh session (restart
+the gateway for messaging). Authentication happens separately in your browser.
 
-Configure with `/fulcra setup --help`, `hermes fulcra setup --help`, or **Desktop → Capabilities → Plugins → Context**. View settings with `/fulcra status`; replace `on` with `off` to disable features. Workspace and notices are off by default. Enabled checks run during active turns at the configured interval, not while idle.
+Optional notices default off:
+- Messages: `/fulcra setup --mesh-agent YOUR_AGENT_NAME --mesh-messages on`
+- Incoming invitation candidates: `/fulcra setup --mesh-invites on`
+- Data/file changes: `/fulcra setup --updates on`
 
-[Setup and account-sharing details](https://github.com/fulcradynamics/fulcra-hermes-plugin/blob/main/docs/setup.md) · [Connecting agents](https://github.com/fulcradynamics/fulcra-hermes-plugin/blob/main/docs/mesh.md)
+Use `/fulcra setup --help`, `hermes fulcra setup --help`, or Desktop → Capabilities
+→ Plugins → Context. Checks run during active turns, not while idle. This plugin
+does not schedule checks or automatically accept, share, send or reply. Host
+scheduling requires separate explicit authorization and configuration.
+
+[Setup](https://github.com/fulcradynamics/fulcra-hermes-plugin/blob/main/docs/setup.md) · [Contacts](https://github.com/fulcradynamics/fulcra-hermes-plugin/blob/main/docs/contacts.md)

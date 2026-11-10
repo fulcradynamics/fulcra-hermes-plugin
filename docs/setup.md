@@ -3,14 +3,14 @@
 ## Choose the active profile's features
 
 Install/enable the plugin and authenticate Fulcra separately. Configuration does
-not authenticate, call Fulcra, bootstrap files, or start workers. All four features
+not authenticate, call Fulcra, bootstrap files, or start workers. All three features
 are off by default and independent. Use only profiles whose chats/users you trust
 with the OS-user Fulcra account; profile isolation is not account isolation.
 
 The canonical form is **Desktop → Capabilities → Plugins → Context**. Its fields
 come from `plugin.yaml`'s `config_schema`, under
 `plugins.entries.context.settings`. Keys exactly match setup flags without `--`.
-Feature switches come first, then workspace details, the shared interval, mesh
+Feature switches come first, then the shared interval, mesh
 identity and update filters. Labels prefix those groups; the current Hermes
 renderer need not render separate group sections. Changing a detail never enables
 its feature.
@@ -24,23 +24,23 @@ Use `hermes -p NAME fulcra ...` for an explicitly selected profile.
 For example, after explicitly choosing all features for trusted chats:
 
 ```text
-/fulcra setup --workspace on --updates on --interval 900 --mesh-messages on --mesh-invites on --mesh-agent personal-assistant
+/fulcra setup --updates on --interval 900 --mesh-messages on --mesh-invites on --mesh-agent personal-assistant
 ```
 
 Or from a terminal (same settings and implementation):
 
 ```bash
-hermes fulcra setup --workspace on --updates on --interval 900 --mesh-messages on --mesh-invites on --mesh-agent personal-assistant
+hermes fulcra setup --updates on --interval 900 --mesh-messages on --mesh-invites on --mesh-agent personal-assistant
 hermes fulcra status
 ```
 
 Use the **exact, stable, case-sensitive** `local_agent` name supplied to your
 mesh peers, not an ephemeral Hermes session ID. Configuration does not create a
-mesh connection: use the explicit `fulcra_mesh` invitation/share workflow first.
+connection: use the explicit [contacts](contacts.md) workflow first.
 No agent name is required for invitation candidates alone:
 
 ```bash
-hermes fulcra setup --workspace off --updates off --mesh-messages off --mesh-invites on
+hermes fulcra setup --updates off --mesh-messages off --mesh-invites on
 ```
 
 Only supplied flags are written, through `ctx.set_config`; all inputs and the
@@ -51,9 +51,8 @@ leave a partial change; inspect status before retrying. No stdin prompts, no
 always-loaded setup tool, no automatic enabling, and no questionnaire. Bad slash
 arguments and help return text rather than raising `SystemExit` in the gateway.
 
-The installer displays a short introduction and setup commands. No first-session
-setup offer is injected into conversations, and setup/status/help do not write a
-discovery marker. Existing choices are preserved; features require explicit opt-in.
+The installer displays an informational introduction and setup commands.
+Setup/status/help without choices are read-only; features require explicit opt-in.
 Cron, child and sessionless turns also cannot consume automatic notifications.
 
 ## Settings and runtime consumers
@@ -63,23 +62,15 @@ setup flag. Booleans use `on`/`off` in setup and `true`/`false` in stored settin
 
 | Logical group | Setting | Default | Consumer / effect |
 | --- | --- | --- | --- |
-| Features | `workspace` | `false` | First-turn `index.md` orientation; missing-only bootstrap |
 | Features | `updates` | `false` | Turn-triggered what's-new digest |
 | Features | `mesh-messages` | `false` | Read peer records for own userid + `mesh-agent` |
 | Features | `mesh-invites` | `false` | Notice narrow incoming share candidates; no automatic acceptance |
-| Workspace | `workspace-name` | `general` | Remote `/workspace/<name>` namespace |
-| Workspace | `workspace-role` | `assistant` | Stable `role/<role-id>` responsibility; does not assign a holder |
 | Shared checks | `interval` | `900` | Minimum seconds between attempts for each of updates and mesh, 60–86400 |
 | Mesh | `mesh-agent` | `""` | Exact canonical `local_agent`, required when message checks are enabled |
 | Update filters | `updates-data-types` | `[]` | Exact type allowlist; empty means all |
 | Update filters | `updates-include-files` | `true` | Include file change metadata |
 | Update filters | `updates-file-prefixes` | `[]` | Literal path prefix allowlist; empty means all |
 | Update filters | `updates-ignore-prefixes` | `[]` | Exclusions override includes |
-
-The workspace skill uses durable `role/<role-id>/` definitions/checkpoints, separate
-from `member/<agent>/` identity/history. Selecting `workspace-role` does not assign
-a holder; new seeds leave assignment pending. Startup reads only `index.md`,
-which holds both the concise workspace overview and navigation.
 
 The filters are optional: retain defaults unless you want to narrow noisy notices.
 List flags replace the complete list, accept space-separated values (quote values
@@ -93,8 +84,7 @@ preserve existing choices. For example:
 
 The `fulcra_configure_updates` model tool writes the same settings.
 
-Workspace names/roles are single ASCII path segments (1–64 characters, initially
-alphanumeric, then alphanumeric/hyphen/underscore). Agent names are strings of at
+Agent names are strings of at
 most 128 characters, without ASCII control characters, nonblank for message reads.
 The native renderer currently enforces types, not every range or cross-field rule;
 set the agent name before enabling messages. Runtime readers fail closed on invalid
@@ -116,16 +106,16 @@ First invitation checking may offer already-existing candidates once.
 The worker reuses canonical `mesh._receive`, channel validation,
 narrow-share selection, envelope validation and addressing, injecting a bounded
 native client factory rather than patching shared module globals. It never parses the
-public tool's potentially truncated response. Manual `mesh.v1` state is untouched;
+public tool's potentially truncated response. Manual `message-receives` state is untouched;
 automatic cursors live separately in `mesh-notifications.v1`, so manual receive
 can still retrieve full messages. Previews retain up to 80 body characters, plus
-mid/owner/channel lookup identifiers. Use explicit `fulcra_mesh receive` with
+mid/owner/channel lookup identifiers. Use `fulcra_receive_agent_messages` with
 `local_agent`, `peer_userid`, `incoming_channel`, and optionally `since` to inspect
 full details. No automatic acceptance, sharing, sends, replies, or peer instruction
 execution. Incoming bodies and provenance fields are untrusted data.
 
 Invitation candidates require a valid sharing account, a share UUID and exactly
-one `MomentAnnotation/<uuid>` selector, `share_all_data: false`, no files or file
+one `Event/<uuid>` selector, `share_all_data: false`, no files or file
 paths. Notices label share ID, grant type and grant ID when provided. The sharing
 account comes from `sharing_fulcra_userid`, never a claimed sender in a message.
 A narrow share is neither acceptance nor proof of exclusive readership; group

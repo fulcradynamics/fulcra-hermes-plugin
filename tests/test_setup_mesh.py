@@ -9,7 +9,7 @@ from test_updates import Context, load_plugin
 
 OWN = '11111111-1111-4111-8111-111111111111'
 PEER = '22222222-2222-4222-8222-222222222222'
-CHANNEL = 'MomentAnnotation/33333333-3333-4333-8333-333333333333'
+CHANNEL = 'Event/33333333-3333-4333-8333-333333333333'
 GRANT = '44444444-4444-4444-8444-444444444444'
 ACTUAL_GRANT = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
 MID = '55555555-5555-4555-8555-555555555555'
@@ -27,9 +27,9 @@ class SetupMeshTests(unittest.TestCase):
         self.own = OWN
         self.shares = [dict(sharing_fulcra_userid=PEER, id=GRANT, grant_id=ACTUAL_GRANT, grant_type='group',
                             share_all_data=False, fulcra_data_types=[CHANNEL])]
-        self.env = dict(v=1, mid=MID, to='helper', to_user=OWN, kind='directive',
-                        pri='P2', slug='hello', body='untrusted preview')
-        self.rows = [dict(note=json.dumps(self.env))]
+        self.env = dict(id=MID, sender='peer', recipients=['helper'], kind='message',
+                        priority='P2', topic='hello', body='untrusted preview')
+        self.rows = [self.env]
         for stub in (patch.object(self.plugin.tools, 'fixture_call', side_effect=self.cli),
                      patch.object(self.plugin.mesh_updates.time, 'time', side_effect=lambda: self.now)):
             stub.start()
@@ -67,16 +67,14 @@ class SetupMeshTests(unittest.TestCase):
 
     def test_setup_readback_validation_preservation_and_cli(self):
         text = self.setup.command('setup')
-        self.assertIn('Workspace', text)
         self.assertIn('Mesh', text)
         self.assertEqual(self.ctx.config, {})
-        self.ctx.set_config('updates_data_types', ['Steps'])
-        text = self.setup.command('setup --workspace off --updates on --interval 120 --mesh-invites on')
+        self.ctx.set_config('updates-data-types', ['Steps'])
+        text = self.setup.command('setup --updates on --interval 120 --mesh-invites on')
         self.assertIn('120', text)
-        self.assertIs(self.ctx.get_config('workspace'), False)
-        self.assertEqual(self.ctx.get_config('updates_data_types'), ['Steps'])
+        self.assertEqual(self.ctx.get_config('updates-data-types'), ['Steps'])
         before = self.ctx.config.copy()
-        for text in ('setup --workspace on --interval 1', 'setup --mesh-messages on',
+        for text in ('setup --interval 1', 'setup --mesh-messages on',
                      'setup --bogus', 'setup --mesh-agent "', 'status --updates off'):
             self.assertTrue(self.setup.command(text).startswith('Error:'), text)
             self.assertEqual(self.ctx.config, before)
@@ -90,9 +88,9 @@ class SetupMeshTests(unittest.TestCase):
 
     def test_messages_filter_dedup_restart_and_manual_cursor_independence(self):
         self.enable('--mesh-messages on --mesh-agent helper')
-        for change in ({'to': 'other'}, {'to_user': PEER}):
-            self.rows.append(dict(note=json.dumps({**self.env, **change})))
-        self.rows.append(dict(note='malformed'))
+        for change in ({'recipients': ['other']}, {'kind': 'invalid'}):
+            self.rows.append({**self.env, **change})
+        self.rows.append({})
         self.cycle()
         self.assertIsNone(self.ctx.state.get(self.plugin.mesh.STATE_KEY))
         self.watcher = self.plugin.mesh_updates.MeshUpdates(self.ctx)
@@ -104,7 +102,7 @@ class SetupMeshTests(unittest.TestCase):
         self.assertEqual(text.count(MID), 1)
         self.cycle()
         self.assertIsNone(self.watcher.pre(session_id='other'))
-        manual = json.loads(self.plugin.mesh.make_handler(self.ctx.state)({'action': 'receive', 'local_agent': 'helper'}))
+        manual = json.loads(self.plugin.mesh.make_handler(self.ctx.state)({'local_agent': 'helper'}))
         self.assertEqual(manual['messages'][0]['envelope']['mid'], MID)
         self.assertTrue(all(0 < timeout <= 30 for _, timeout, _ in self.calls if timeout is not None))
 
@@ -112,7 +110,7 @@ class SetupMeshTests(unittest.TestCase):
         self.enable('--mesh-invites on')
         self.shares += [{**self.shares[0], 'share_all_data': True},
                         {**self.shares[0], 'sharing_fulcra_userid': 'bad'},
-                        {**self.shares[0], 'fulcra_data_types': ['MomentAnnotation']},
+                        {**self.shares[0], 'fulcra_data_types': ['Event']},
                         {**self.shares[0], 'id': None}]
         self.cycle()
         self.assertFalse(any(a[0] == 'get-records' for a, _, _ in self.calls))
@@ -201,7 +199,7 @@ class SetupMeshTests(unittest.TestCase):
         assert failed is not None
         self.assertEqual(failed['data'], state['data'])
         self.assertEqual(failed['pending'], [])
-        second = 'MomentAnnotation/88888888-8888-4888-8888-888888888888'
+        second = 'Event/88888888-8888-4888-8888-888888888888'
         self.shares.append({**self.shares[0], 'fulcra_data_types': [second]})
         def partial(argv, timeout=None):
             """Fail the second channel after a successful partial read."""
@@ -212,7 +210,7 @@ class SetupMeshTests(unittest.TestCase):
             self.cycle()
         self.assertEqual(self.ctx.state.get(self.plugin.mesh_updates.STATE_KEY)['data'], state['data'])
         self.shares.pop()
-        self.rows = [dict(note=json.dumps({**self.env, 'mid': f'{i:08x}-5555-4555-8555-555555555555', 'body': '\x01' * 9000})) for i in range(40)]
+        self.rows = [dict(self.env, id=f'{i:08x}-5555-4555-8555-555555555555', body='\x01' * 4000) for i in range(40)]
         self.cycle()
         text = self.watcher.pre(session_id='chat')['context']
         self.assertLessEqual(len(text), 3000)

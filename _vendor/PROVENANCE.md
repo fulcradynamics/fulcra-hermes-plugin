@@ -1,21 +1,25 @@
 # Vendored Fulcra API subset
 
 Source: https://github.com/fulcradynamics/fulcra-api-python
-Revision: `66949bac42920c841facd567a02d6d6c4e01e824`
+Revision: `4a4769152e9770406fe66113e49e555f70db9201`
 License: Apache-2.0; Copyright 2025 Fulcra Dynamics. Full upstream terms retained in [LICENSE](LICENSE).
 
 `python scripts/vendor.py /path/to/checkout` reproduces these files; verify the
 checkout is at the pinned revision first. The explicit method allowlist in that
 script is the extraction inventory. Files derive from `fulcra_api/{core,oidc,
-credentials,records}.py`, not CLI parsers. No upstream file is modified.
+credentials,records,connections,record_validation,user_agent}.py`, not CLI parsers.
+No upstream file is modified. Connections retains the canonical channel fields,
+body limit and message builder/UUID helper, not unused constants or send/discovery workflows. The extracted
+package reports version `unknown`, like an uninstalled upstream source checkout.
 
 Changes:
 - Remove unused API methods, dataframe operations, notebook/browser authorization,
   deprecated auth wrappers, blocking polling and code-grant flow. Keep only the
   core/data/group access methods needed by exposed tools and their helpers.
 - Remove long method docstrings/comments and format via Python AST unparse.
-- Make records' core import relative. Replace `urllib.request.urlopen` calls by
-  `self._open` for plugin-owned timeouts and redirect privacy. No endpoint, payload,
+- Make upstream package imports relative. Replace `urllib.request.urlopen` calls by
+  `self._open`, removing upstream timeout keywords in favor of the plugin's shared
+  deadline, for finite timeouts and redirect privacy. No endpoint, payload,
   catalog disambiguation, credential serialization or records dispatch rewrites.
 - The surrounding adapter uses the upstream OIDC device/token exchanges once per
   tool call; returns pending rather than polling. It writes the same OS-user JSON
@@ -23,6 +27,10 @@ Changes:
   No tokens/raw authentication errors enter logs or results.
 - The adapter strips Authorization on cross-origin redirects (urllib otherwise
   forwards it), uses finite request budgets, and never retries uncertain mutations.
+- Remove upstream automatic 401 request replay and refresh-token retry loops.
+  Each API mutation and each rotating-token exchange is attempted once; a denial
+  or uncertain outcome must not trigger another write. This is an intentional
+  safety difference from upstream, covered by native behavior tests (not parity).
 
 Runtime dependency: `jsonschema>=4.23,<5` for upstream schema validation and explicit
 tool schemas. Its dependencies are attrs, referencing, rpds-py and

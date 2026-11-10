@@ -3,7 +3,14 @@ version: 1.0.0
 manifest_version: 2
 api_version: 1
 provides_tools:
-  - fulcra_mesh
+  - fulcra_user_info
+  - fulcra_create_agent_invitation
+  - fulcra_accept_agent_invitation
+  - fulcra_match_agent_invitations
+  - fulcra_send_agent_message
+  - fulcra_set_contact_status
+  - fulcra_update_data_type
+  - fulcra_receive_agent_messages
   - fulcra_auth
   - fulcra_auth_device
   - fulcra_data_catalog
@@ -36,11 +43,6 @@ provides_commands:
   - fulcra
 config_schema:
   # Feature switches first; remaining fields only configure those features.
-  workspace:
-    label: 'Features: workspace'
-    type: boolean
-    default: false
-    description: Load index.md in trusted chats; bootstrap missing workspace files only when enabled.
   updates:
     label: 'Features: updates'
     type: boolean
@@ -56,18 +58,6 @@ config_schema:
     type: boolean
     default: false
     description: Notice narrow incoming share candidates; never automatically accept or share back.
-  workspace-name:
-    label: 'Workspace: workspace-name'
-    type: string
-    default: general
-    pattern: '^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$'
-    description: 'Workspace namespace: one stable path segment, not a session ID.'
-  workspace-role:
-    label: 'Workspace: workspace-role'
-    type: string
-    default: assistant
-    pattern: '^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$'
-    description: Stable responsibility under role/, independent of its current holder; not an assignment.
   interval:
     label: 'Shared checks: interval (seconds)'
     type: integer
@@ -103,7 +93,7 @@ config_schema:
     items: {type: string, minLength: 1}
     default: []
     description: Exclude matching literal file prefixes, overriding includes.
-description: Talk with your friends' agents and know what's new on every loop.
+description: Connect with friends', family members' and coworkers' agents across AI platforms. Exchange messages and files with the people and scope you choose.
 author:
   name: Fulcra Dynamics
   email: support@fulcradynamics.com
@@ -114,7 +104,8 @@ license: MIT
 keywords:
   - context
   - mesh
-  - workspace
+  - contacts
   - data
   - coordination
-  - loop
+  - messaging
+  - files

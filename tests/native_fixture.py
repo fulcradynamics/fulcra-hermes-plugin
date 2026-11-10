@@ -1,35 +1,19 @@
-"""Adapt retained workflow fixtures to native clients, never a runtime transport.
+"""Scripted read fixtures for offline hook and receive tests.
 
-The old scripted transcripts remain useful for cursor/consent/failure regressions.
 Native wire/payload parity is tested separately in test_native and test_parity.
 """
 import json
-from pathlib import Path
-import tempfile
 
 
 class FileStore:
-    """In-memory workspace files for the offline Hermes hook probe."""
+    """User files that automatic hooks must leave untouched."""
     def __init__(self):
         self.files = {}
         self.calls = []
-        self.locals = []
 
     def __call__(self, argv, timeout):
         self.calls.append((argv, timeout))
-        operation = argv[1]
-        remote = argv[2] if operation == 'download' else argv[3]
-        local = Path(argv[3] if operation == 'download' else argv[2])
-        self.locals.append(local)
-        assert local.parent.stat().st_mode & 0o777 == 0o700
-        if operation == 'upload':
-            assert local.stat().st_mode & 0o777 == 0o600
-            self.files[remote] = local.read_text()
-            return 'Uploaded'
-        if remote not in self.files:
-            raise RuntimeError(f'Fulcra CLI exited with status 1: Error: File not found in Fulcra: {remote}')
-        local.write_text(self.files[remote])
-        return 'Downloaded to local file'
+        raise AssertionError('Automatic hooks must not access user file contents')
 
 
 def install(plugin):
@@ -38,9 +22,8 @@ def install(plugin):
         raise AssertionError('Unmocked fixture')
     tools.fixture_call = unavailable
     tools.client = lambda **kwargs: FixtureClient(plugin, kwargs.get('timeout'))
-    # Exercise the workflow, with record dispatch covered separately by native tests.
+    # Record dispatch is covered separately by native and lifecycle tests.
     tools.records = lambda api, kind, start, end, user_id=None: api.records(kind, start, end, user_id)
-    tools.record = lambda api, kind, rows: api.record(kind, rows)
     return plugin
 
 
@@ -59,29 +42,8 @@ class FixtureClient:
     def get_user_info(self):
         return json.loads(self.call(['user-info']))
 
-    def v1_catalog(self, data_type):
-        return self.rows(['catalog', '--data-type', data_type])
-
-    def create_annotation(self, kind, name, description, tags):
-        assert kind == 'moment' and tags == []
-        return json.loads(self.call(['data-type', 'create', 'MomentAnnotation', name, '--description', description]))
-
-    def get_datashares(self):
-        return self.rows(['share', 'list-outgoing'])
-
     def get_shared_datasets(self):
         return self.rows(['share', 'list-incoming'])
-
-    def create_datashare(self, name, types, users, *, share_all_data, allowed_group_ids):
-        assert share_all_data is False and allowed_group_ids == [] and len(types) == len(users) == 1
-        return json.loads(self.call(['share', 'create', '--name', name, '--data-type', types[0], '--user-id', users[0]]))
-
-    def record(self, kind, rows):
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / 'records'
-            path.write_text('\n'.join(map(json.dumps, rows)))
-            path.chmod(0o600)
-            return self.call(['record', kind, '--file', str(path)])
 
     def records(self, kind, start, end, owner):
         argv = ['get-records', kind, start.isoformat(), end.isoformat()]
@@ -91,22 +53,3 @@ class FixtureClient:
 
     def data_updates(self, start, end):
         return json.loads(self.call(['data-updates', start, end]))
-
-    def read_file(self, remote):
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / 'download'
-            try:
-                self.call(['file', 'download', remote, str(path)])
-            except RuntimeError as exc:
-                if str(exc) == f'Fulcra CLI exited with status 1: Error: File not found in Fulcra: {remote}':
-                    from importlib import import_module
-                    raise import_module(self.plugin.__name__ + '.client').MissingFile(remote) from None
-                raise
-            return path.read_bytes()
-
-    def write_file(self, remote, data):
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / 'upload'
-            path.write_bytes(data)
-            path.chmod(0o600)
-            return self.call(['file', 'upload', str(path), remote])

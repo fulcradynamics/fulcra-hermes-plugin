@@ -18,7 +18,7 @@ import unittest
 from unittest.mock import patch, Mock
 from test_tools import load_tools
 
-PIN = '66949bac42920c841facd567a02d6d6c4e01e824'
+PIN = '4a4769152e9770406fe66113e49e555f70db9201'
 ID = '11111111-1111-4111-8111-111111111111'
 OTHER = '22222222-2222-4222-8222-222222222222'
 
@@ -30,12 +30,14 @@ class ParityTests(unittest.TestCase):
         path = Path(os.environ['FULCRA_UPSTREAM'])
         assert subprocess.check_output(['git', '-C', str(path), 'rev-parse', 'HEAD'], text=True).strip() == PIN
         package = types.ModuleType('fulcra_api')
+        package.__version__ = 'unknown'
         package.__path__ = [str(path / 'fulcra_api')]
         pandas = types.ModuleType('pandas')
         pandas.DataFrame = object  # Only unused annotations need it, no pandas operations permitted.
         with patch.dict(sys.modules, {'fulcra_api': package, 'pandas': pandas}):
             cls.up = importlib.import_module('fulcra_api.core')
             cls.up_records = importlib.import_module('fulcra_api.records')
+            cls.up_connections = importlib.import_module('fulcra_api.connections')
         load_tools()
         cls.vendor = importlib.import_module('tool_fixture_plugin._vendor.core')
         cls.native = importlib.import_module('tool_fixture_plugin.client')
@@ -45,9 +47,21 @@ class ParityTests(unittest.TestCase):
         claims = base64.urlsafe_b64encode(json.dumps({'fulcradynamics.com/userid': ID}).encode()).decode()
         return [module.FulcraAPI(oidc_audience='http://127.0.0.1:9', access_token='x.' + claims + '.x', access_token_expiration=datetime.now() + timedelta(hours=1)) for module in (self.up, self.vendor)]
 
+    def test_current_channel_schema_and_messages_match(self):
+        vendor = importlib.import_module('tool_fixture_plugin._vendor.connections')
+        self.assertEqual(vendor.CHANNEL_FIELDS, self.up_connections.CHANNEL_FIELDS)
+        for kind in ('message', 'reply', 'ack'):
+            args = dict(sender='helper', body='Hello', kind=kind, record_id=ID,
+                        topic='trip', priority='P2', recipients=['peer'])
+            if kind != 'message':
+                args['in_reply_to'] = OTHER
+            self.assertEqual(vendor.build_message(**args), self.up_connections.build_message(**args))
+
     def test_wire_methods_match_upstream(self):
         cases = [
             ('v1_catalog', (), {'category': 'event', 'fulcra_userid': OTHER}),
+            ('create_data_type', ('Event', {'name': 'Contact', 'description': 'test'}), {}),
+            ('update_data_type', ('Event', ID, {'description': 'updated'}), {}),
             ('v1_catalog_schema', ('MomentAnnotation', 'v1alpha1', OTHER), {}),
             ('data_updates', ('2026-01-01T00:00:00Z', '2026-01-02T00:00:00Z'), {}),
             ('create_annotation', ('scale', 'Mood', 'desc', []), {'scale_labels': ['a', 'b', 'c', 'd', 'e']}),
@@ -65,7 +79,7 @@ class ParityTests(unittest.TestCase):
                 observed = []
                 for api in self.clients():
                     requests = []
-                    def opened(req):
+                    def opened(req, **kwargs):
                         requests.append((req.full_url, req.method, req.data, dict(req.headers)))
                         return io.BytesIO(b'{}')
                     api._open = opened
@@ -124,7 +138,7 @@ class ParityTests(unittest.TestCase):
         observed = []
         for api in self.clients():
             calls = []
-            def opened(req):
+            def opened(req, **kwargs):
                 calls.append((req.full_url, req.method, req.data, dict(req.headers)))
                 value = ({'device_code': 'device', 'verification_uri_complete': 'https://fixture/verify',
                           'user_code': 'human', 'expires_in': 3600, 'interval': 5}
@@ -145,7 +159,7 @@ class ParityTests(unittest.TestCase):
         generator = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(generator)
         upstream = Path(os.environ['FULCRA_UPSTREAM'])
-        for name in ('core', 'oidc', 'credentials', 'records'):
+        for name in ('core', 'oidc', 'credentials', 'records', 'connections', 'record_validation', 'user_agent'):
             expected = generator.extract((upstream / 'fulcra_api' / (name + '.py')).read_text(), name)
             actual = (root / '_vendor' / (name + '.py')).read_text()
             self.assertEqual(ast.dump(ast.parse(actual)), ast.dump(ast.parse(expected)), name)

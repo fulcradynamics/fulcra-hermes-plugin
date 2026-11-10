@@ -1,17 +1,15 @@
 """Native settings plus explicit, noninteractive slash/CLI frontends."""
 import argparse
 import json
-import re
 import shlex
 
-from . import mesh_updates, settings, updates, workspace
+from . import mesh_updates, settings, updates
 
-SETTINGS = {**workspace.SETTINGS, **updates.SETTINGS, **mesh_updates.SETTINGS}
+SETTINGS = {**updates.SETTINGS, **mesh_updates.SETTINGS}
 
-FEATURES = ('workspace_context_enabled', 'updates_enabled', 'mesh_messages_enabled', 'mesh_invites_enabled')
+FEATURES = ('updates_enabled', 'mesh_messages_enabled', 'mesh_invites_enabled')
 GROUPS = (
     ('Features', FEATURES),
-    ('Workspace', ('workspace_name', 'workspace_role')),
     ('Shared checks', ('update_interval',)),
     ('Mesh', ('mesh_agent',)),
     ('Update filters', ('updates_data_types', 'updates_include_files',
@@ -43,9 +41,6 @@ def arguments(parser):
             else:
                 options['metavar'] = 'NAME'
             group.add_argument('--' + settings.NAMES[key], **options)
-    parser.add_argument_group('Upgrade').add_argument(
-        '--migrate', action='store_true', default=argparse.SUPPRESS,
-        help='Copy saved legacy choices to the new setting names; preserve explicit new values.')
 
 
 class Setup:
@@ -76,7 +71,7 @@ class Setup:
     def cli(self, args):
         """Apply explicit native CLI choices and print their readback."""
         # Only our namespace keys, not Hermes's global parser options.
-        values = {k: v for k, v in vars(args).items() if k in SETTINGS or k in ('action', 'migrate')}
+        values = {k: v for k, v in vars(args).items() if k in SETTINGS or k == 'action'}
         try:
             text = self.apply(values)
         except (ValueError, OSError) as exc:
@@ -89,20 +84,14 @@ class Setup:
         action = args.pop('action', 'setup')
         if action != 'setup' and args:
             raise ValueError('Only setup accepts settings flags')
-        migrate = args.pop('migrate', False)
-        if not args and not migrate:
+        if not args:
             return self.status()
         changes = {k: (v == 'on' if SETTINGS[k]['type'] == 'boolean' else v) for k, v in args.items()}
         with updates._lock(self.ctx):
-            if migrate:
-                changes = {**settings.legacy(self.ctx), **changes}
             current = {k: settings.get(self.ctx, k, spec['default']) for k, spec in SETTINGS.items()}
             merged = {**current, **changes}
             # Validate the complete proposed configuration before the first config write.
             updates._validate_settings({k: merged[k] for k in updates.SETTINGS})
-            for key in ('workspace_name', 'workspace_role'):
-                if not isinstance(merged[key], str) or not re.fullmatch(workspace.SEGMENT, merged[key]):
-                    raise ValueError(settings.NAMES[key] + ' must be a single alphanumeric, hyphen or underscore segment (1–64 characters)')
             mesh_updates.validate(merged)
             for key in FEATURES:
                 if type(merged[key]) is not bool:
@@ -117,18 +106,16 @@ class Setup:
     def status(self):
         """Show current grouped values and available setup controls."""
         lines = ['Fulcra settings (active profile; trusted chats only):']
-        if settings.legacy(self.ctx):
-            lines.append('Legacy settings are active. Run /fulcra setup --migrate before using the native settings form.')
         for group, keys in GROUPS:
             lines.append(group + ':')
             for key in keys:
                 value = settings.get(self.ctx, key, SETTINGS[key]['default'])
                 lines.append('  ' + settings.NAMES[key] + ' = ' + json.dumps(value, ensure_ascii=True))
         lines += ['Use Desktop Capabilities → Plugins, /fulcra setup --help, or hermes fulcra setup --help.',
-                  'Choose --workspace on/off --updates on/off --interval 900 --mesh-messages on/off',
+                  'Choose --updates on/off --interval 900 --mesh-messages on/off',
                   '       --mesh-invites on/off --mesh-agent NAME. Omitted choices are preserved.',
                   'Checks are turn-triggered; notices arrive on a later turn, never while idle.',
-                  'No automatic accept/share/reply/send. Workspace loads on a new session first turn.']
+                  'No automatic accept/share/reply/send.']
         return '\n'.join(lines)
 
 

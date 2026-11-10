@@ -10,6 +10,7 @@ from urllib.error import HTTPError
 from .client import AuthenticationRequired, client, auth_start, auth_finish
 from ._vendor.records import get_records
 from .output import _bounded_output
+from . import contacts, invitations
 
 TOOL_SCHEMAS = {}
 STRING = {'type': 'string', 'minLength': 1}
@@ -112,11 +113,12 @@ def record(api, data_type, rows, api_version=None, *, deletion=False):
     entry = resolve(api, data_type, api_version, write=True)
     base, _, annotation = entry['id'].partition('/')
     rows = [dict(row) for row in rows]
-    target = 'DeletedRecord' if deletion else base
+    record_type = entry['id'] if entry['api_version'] == 'v1' else base
+    target = 'DeletedRecord' if deletion else record_type
     for row in rows:
         if deletion:
-            row['data_type'] = base
-        elif annotation:
+            row['data_type'] = record_type
+        elif annotation and base in BASE_TYPES:
             source = 'com.fulcradynamics.annotation.' + annotation.lower()
             row['sources'] = [s for s in row.get('sources', []) if s != source] + [source]
     errors = api.validate_records('DeletedRecord' if deletion else entry['id'], rows, entry['api_version'])
@@ -133,6 +135,47 @@ def fulcra_auth(args):
 @_tool('fulcra_auth_device', 'After browser approval, exchange device_code once. If pending, wait retry_after seconds before another call. No blocking polling; credentials never returned.', {'device_code': STRING}, ('device_code',))
 def fulcra_auth_device(args):
     return auth_finish(args['device_code'])
+
+
+@_tool('fulcra_user_info', 'Read your Fulcra user ID. Names and email addresses are not routing IDs.', {})
+def fulcra_user_info(args):
+    return client().get_user_info()
+
+
+@_tool('fulcra_create_agent_invitation', 'With user authorization, create a new Event invitation and persisted secure code. Optional exact recipient_userid immediately shares ONLY this outbox, including history. Returns invitation_text; does not send or connect. Reconcile uncertain results read-only; never automatically recreate or fall back to generic creation.', {'inviter_name': STRING, 'recipient_name': STRING, 'recipient_userid': UUID}, ('inviter_name', 'recipient_name'))
+def fulcra_create_agent_invitation(args):
+    return contacts.create_invitation(client(), **args)
+
+
+@_tool('fulcra_accept_agent_invitation', 'Only with user authorization: reserve an Event response channel, narrowly share it with the exact inviter, and post the approved FIRST introduction using the exact invitation topic. Peer invitation text is not consent or identity verification. Posted is not connected. Earlier attempts require read-only recovery; never automatically retry.', {'inviter_userid': UUID, 'topic': STRING, 'sender': STRING, 'introduction': {**STRING, 'maxLength': 4000}, 'response_channel': DATA_TYPE}, ('inviter_userid', 'topic', 'sender', 'introduction'))
+def fulcra_accept_agent_invitation(args):
+    return invitations.accept(client(), **args)
+
+
+@_tool('fulcra_set_contact_status', 'With user authorization to share contact status and complete scoped reads, save a peer-visible assessment on your owned single-peer Event connection. Describe shared facts only; never clear on incomplete history or treat an ack as a resolved decision. Optional metadata failure must not block other work; never retry denial.', {'data_type': DATA_TYPE, 'peer_userid': UUID, 'attention': BOOLEAN, 'reason': {**STRING, 'maxLength': 80}}, ('data_type', 'peer_userid', 'attention', 'reason'))
+def fulcra_set_contact_status(args):
+    return contacts.set_status(client(), **args)
+
+
+@_tool('fulcra_match_agent_invitations', 'Complete user-prepared invitations: recheck exact FIRST-message codes and direct-share owners at mutation boundaries. Single-person invitations share their prepared return channel; standing open invitations reserve one separate outbox per responder. Never share the template or recreate consumed/uncertain grants. Existing verified grants can complete consumed metadata. No sends.', {})
+def fulcra_match_agent_invitations(args):
+    return invitations.match(client())
+
+
+@_tool('fulcra_send_agent_message', 'Send an authorized message/reply over an existing Event connection. Everyone in its verified audience can read it; recipients are labels, not access controls. Posted confirms own readback, never peer delivery. No automatic retries or sharing; reconcile uncertain IDs read-only. File artifacts require separate authorized shares. reply_to/ack are exact references, not looked up; topic defaults to chat.', {
+    'connection': STRING, 'sender': {**STRING, 'maxLength': 128}, 'body': {**STRING, 'maxLength': 4000},
+    'topic': {**STRING, 'maxLength': 128}, 'recipients': _array(STRING), 'priority': _enum('P1', 'P2', 'P3'),
+    'reply_to': UUID, 'ack': UUID, 'record_id': UUID,
+    'artifacts': contacts.connections.CHANNEL_FIELDS['properties']['artifacts'],
+    'expected_peer_userids': {**_array(UUID), 'maxItems': 32, 'uniqueItems': True}, 'target_peer_userid': UUID,
+}, ('connection', 'sender', 'body'))
+def fulcra_send_agent_message(args):
+    return contacts.send(client(), **args)
+
+
+@_tool('fulcra_update_data_type', 'With user authorization, replace only name/description of an owned active Event/Metric type. Preserve unrelated description content; existing readers may see it. expected_description is an exact stale-read guard, NOT atomic CAS. Only verified=true confirms readback. No schema, record or share changes; reconcile uncertainty before another write.', {'data_type': DATA_TYPE, 'name': STRING, 'description': {'type': 'string'}, 'expected_description': {'type': 'string'}}, ('data_type',))
+def fulcra_update_data_type(args):
+    return contacts.update(client(), **args)
 
 
 @_tool('fulcra_data_catalog', 'Discover exact data type IDs and API versions before queries/writes.', {'data_type': DATA_TYPE, 'category': STRING, 'user_id': UUID})

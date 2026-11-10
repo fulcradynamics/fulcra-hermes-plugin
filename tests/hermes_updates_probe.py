@@ -48,7 +48,7 @@ def main():
         parser = argparse.ArgumentParser()
         plugin.plugin_setup.arguments(parser)
         options = {flag[2:] for action in parser._actions for flag in action.option_strings
-                   if flag.startswith('--') and flag not in ('--help', '--migrate')}
+                   if flag.startswith('--') and flag != '--help'}
         assert options == manifest['config_schema'].keys()
         assert list(manifest['config_schema']) == [plugin.settings.NAMES[k]
             for _, keys in plugin.plugin_setup.GROUPS for k in keys]
@@ -106,8 +106,8 @@ def main():
                     return json.dumps(dict(sharing_fulcra_userid=PEER, datashare_id=GRANT,
                                            grant_type='user', share_all_data=False, fulcra_data_types=[CHANNEL]))
                 assert argv[0] == 'get-records' and argv[-2:] == ['--user-id', PEER]
-                return json.dumps({'note': json.dumps(dict(v=1, mid=mesh_mid[0], to='helper', to_user=OWN,
-                    kind='response', pri='P2', slug='probe', body=home.name + '-mesh'))})
+                return json.dumps(dict(id=mesh_mid[0], sender='peer', recipients=['helper'],
+                    kind='message', priority='P2', topic='probe', body=home.name + '-mesh'))
             assert timeout == 30
             seen.append(home.name)
             return json.dumps(dict(start_time=argv[1], end_time=argv[2],
@@ -138,16 +138,10 @@ def main():
                     assert ctx.get_config('updates') is True
                     assert ctx.get_config('interval') == 60
                     assert yaml.safe_load((home / 'config.yaml').read_text())['plugins']['entries']['context']['settings']['updates'] is True
-                    unset = object()
-                    assert ctx.get_config('workspace_context_enabled', unset) is unset
-                    assert not pre('offer-cron', platform='cron', first=True)
+                    assert not pre('scheduled', platform='cron', first=True)
                     assert not pre('child', 'same-chat', first=True)
-                    assert ctx.get_config('workspace_context_enabled', unset) is unset
                     assert not pre()
-                    assert not pre('new-session', first=True)  # No first-session setup offer.
-                    assert ctx.state.get('setup-discovered.v1') is None
-                    saved = yaml.safe_load((home / 'config.yaml').read_text())
-                    assert 'workspace_context_enabled' not in saved['plugins']['entries']['context']['settings']
+                    assert not pre('new-session', first=True)
                     assert not stores[name].calls
                     assert not pre('another-session', first=True)
                     slash = get_plugin_command_handler('fulcra')
@@ -169,10 +163,9 @@ def main():
                     assert fields['mesh-agent']['type'] == 'string'
                     assert fields['interval']['type'] == 'number'
                     assert all(f['label'] != k and f['description'] for k, f in fields.items())
-                    save_plugin_settings('context', Path(ctx.manifest.path), {'workspace': False})
-                    assert ctx.get_config('workspace') is False
-                    ctx.set_config('updates_data_types', [name + '-type'])
-                    assert not slash('setup --migrate').startswith('Error:')
+                    save_plugin_settings('context', Path(ctx.manifest.path), {'updates-include-files': False})
+                    assert ctx.get_config('updates-include-files') is False
+                    assert not slash('setup --updates-data-types ' + name + '-type').startswith('Error:')
                     fields = {f['key']: f for f in plugin_settings_fields('context', Path(ctx.manifest.path))}
                     assert fields['updates-data-types']['value'] == [name + '-type']
                     assert 'false' in slash('status')
@@ -212,49 +205,21 @@ def main():
             for name in ('a', 'b', 'a'):
                 with scope(name) as home:
                     ctx = contexts[name]
-                    # Intentional standard config writes, isolated to disposable homes.
-                    ctx.set_config('workspace-name', 'work-' + name)
-                    ctx.set_config('workspace-role', 'researcher')
-                    ctx.set_config('workspace', True)
-                    saved = yaml.safe_load((home / 'config.yaml').read_text())
-                    assert saved['plugins']['entries']['context']['settings']['workspace-name'] == 'work-' + name
+                    stores[name].files['/notes/existing.md'] = 'Preserve user content'
+                    saved = (home / 'config.yaml').read_bytes()
+                    before = stores[name].files.copy()
                     count = len(stores[name].calls)
-                    assert not pre('workspace-cron', platform='cron', first=True)
-                    assert not pre('workspace-child', parent='parent', first=True)
-                    assert not pre('workspace-ordinary')
-                    text = pre('workspace-chat', first=True)
-                    if count:
-                        assert not text and len(stores[name].calls) == count
-                    else:
-                        assert 'user-owned reference' in text and 'researcher' in text
-                        assert 'missing seeds verified' in text
-                        assert all(path.startswith('/workspace/work-' + name + '/') for path in stores[name].files)
-                        base = '/workspace/work-' + name + '/'
-                        path = base + 'index.md'
-                        stores[name].files[base + 'knowledge/user-preferences.md'] = 'LINKED PRIVATE SENTINEL'
-                        stores[name].files[path] = '---\ntype: Reference\n---\nPrivate preference ' + name + '\n[Details](knowledge/user-preferences.md)'
-                        before = stores[name].files.copy()
-                        count = len(stores[name].calls)
-                        text = pre('workspace-new', first=True)
-                        assert len(stores[name].calls) == count + 1
-                        assert stores[name].calls[-1][0][1:3] == ['download', path]
-                        assert stores[name].files == before
-                        assert 'LINKED PRIVATE SENTINEL' not in text
-                        assert 'Private preference ' + name in text
-                        assert 'Private preference ' + ('b' if name == 'a' else 'a') not in text
-                        stores[name].files[path] = '\x01' * 9000
-                        text = pre('workspace-bounded', first=True)
-                        assert len(text) < 10000 and '"truncated": true' in text
-                        assert path in text and 'UNTRUSTED DATA' in text
-                        assert len(stores[name].calls) == count + 2
-                    assert not any(path.exists() for path in stores[name].locals)
-                    ctx.set_config('workspace', False)
-                    assert not pre('workspace-disabled', first=True)
+                    assert not pre('scheduled', platform='cron', first=True)
+                    assert not pre('child', parent='parent', first=True)
+                    assert not pre('ordinary')
+                    assert not pre('new-chat', first=True)
+                    assert stores[name].files == before
+                    assert len(stores[name].calls) == count
+                    assert (home / 'config.yaml').read_bytes() == saved
             with scope('a'):
                 ctx = contexts['a']
                 assert not get_plugin_command_handler('fulcra')(
-                    'setup --workspace on --updates on').startswith('Error:')
-                stores['a'].files['/workspace/work-a/index.md'] = 'Combined workspace context'
+                    'setup --updates on').startswith('Error:')
                 mesh_mid[0] = '99999999-9999-4999-8999-999999999999'
                 assert not pre('combined-baseline')
                 now[0] += 61
@@ -264,15 +229,16 @@ def main():
                 assert PluginContext(ctx.manifest, managers['a']).state.get(
                     plugin.mesh_updates.STATE_KEY) == ctx.state.get(plugin.mesh_updates.STATE_KEY)
                 text = pre('combined-first-turn', first=True)
-                assert all(part in text for part in ('Combined workspace context', 'a-type', 'a-mesh', mesh_mid[0]))
+                assert all(part in text for part in ('a-type', 'a-mesh', mesh_mid[0]))
+                assert 'Preserve user content' not in text
                 assert not pre('combined-later')
         for manager in managers.values():
             manager.unload()
         print('PASS: real PluginContext/PluginState, config readback, hook dispatch, current-user context, '
               'A→B→A isolation, cross-session single delivery, copied worker/runtime scope, cron/child exclusion, cron writes remain visible, disable; '
-              'no first-session setup offer or discovery marker, registered slash/CLI setup, native settings recognition/readback, '
-              'automatic mesh message/invite notices and separate manual state, workspace single-context injection, '
-              'private links not loaded, bounded reload and hook coexistence, no overwrite or persistent staging; network blocked.')
+              'registered slash/CLI setup, native settings recognition/readback, '
+              'automatic Event message/invite notices and separate manual state, '
+              'user files and config unchanged by turn hooks; network blocked.')
 
 
 if __name__ == '__main__':

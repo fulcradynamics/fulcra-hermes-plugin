@@ -1,6 +1,6 @@
 """Offline credential generations and shared absolute deadline regressions."""
 from contextlib import contextmanager
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import importlib
 import io
 from pathlib import Path
@@ -25,7 +25,7 @@ class AuthCoordinationTests(unittest.TestCase):
     def creds(self, token='old', refresh='r0', expired=True):
         return self.native.FulcraCredentials(
             access_token=token, refresh_token=refresh,
-            access_token_expiration=datetime.now() + timedelta(seconds=-1 if expired else 3600))
+            access_token_expiration=datetime.now(timezone.utc) + timedelta(seconds=-1 if expired else 3600))
 
     @contextmanager
     def contention(self):
@@ -43,6 +43,19 @@ class AuthCoordinationTests(unittest.TestCase):
             release.set()
             worker.join(3)
             self.assertFalse(worker.is_alive())
+
+    def test_sdk_refresh_does_not_replay_denied_writes_or_token_exchanges(self):
+        from urllib.error import HTTPError
+        api = self.native.Client(credentials=self.creds(expired=False))
+        with patch.object(api, '_open', side_effect=HTTPError('http://fixture', 401, 'denied', {}, None)) as opened, patch.object(api, 'refresh_credentials') as refresh:
+            with self.assertRaises(HTTPError):
+                api.fulcra_api('/write', method='POST', data={'value': 1})
+            opened.assert_called_once()
+            refresh.assert_not_called()
+        with patch.object(api.oidc, 'get_token', side_effect=TimeoutError) as exchange:
+            with self.assertRaises(TimeoutError):
+                api.oidc.refresh_credentials(self.creds())
+            exchange.assert_called_once()
 
     def test_two_factory_clients_share_rotated_generation(self):
         self.native.save_credentials(self.creds())
