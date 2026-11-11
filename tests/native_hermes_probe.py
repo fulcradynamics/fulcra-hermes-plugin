@@ -1,11 +1,10 @@
-"""Run native registration and existing hook probes in disposable offline Hermes.
+"""Register the plugin and exercise its tools in a disposable, offline Hermes.
 
 Usage: python tests/native_hermes_probe.py HERMES_PYTHON HERMES_SOURCE [--doctor | --validate]
 """
 import argparse
 import os
 from pathlib import Path
-import runpy
 import subprocess
 import sys
 import tempfile
@@ -28,22 +27,20 @@ def child(source, probe):
     if probe == 'doctor':
         from hermes_cli.plugins_cmd import cmd_plugin_doctor
         raise SystemExit(cmd_plugin_doctor(str(Path(__file__).resolve().parents[1]), ci=True))
-    if probe != 'native':
-        sys.argv = [probe, source]
-        runpy.run_path(str(Path(__file__).with_name(probe)), run_name='__main__')
-        return
     import importlib.util
+    import json
     from unittest.mock import patch
     from hermes_cli.plugins import PluginContext, get_plugin_manager
     from hermes_cli.plugins_manifest import PluginManifest
     from hermes_constants import set_hermes_home_override, reset_hermes_home_override
     from tools.registry import registry
-    from test_contacts import ContactsTests, CHANNEL, MID
+    from plugin import CHANNEL_FIELDS, accounts
     root = Path(__file__).resolve().parents[1]
-    spec = importlib.util.spec_from_file_location('native_runtime_plugin', root / '__init__.py', submodule_search_locations=[str(root)])
+    spec = importlib.util.spec_from_file_location('fulcra_plugin', root / '__init__.py', submodule_search_locations=[str(root)])
     plugin = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = plugin
     spec.loader.exec_module(plugin)
+    alex, sura = '00000000-0000-4000-8000-00000000000a', '00000000-0000-4000-8000-00000000000b'
     for name in ('a', 'b', 'a'):
         home = Path(os.environ['HERMES_HOME']) / name
         home.mkdir(exist_ok=True)
@@ -51,40 +48,34 @@ def child(source, probe):
         try:
             manager = get_plugin_manager()
             manager._discovered = True
-            context = PluginContext(PluginManifest(name='context', path=str(root)), manager)
+            context = PluginContext(PluginManifest(name='fulcra', path=str(root)), manager)
             before = sorted(home.rglob('*'))
             plugin.register(context)
             assert sorted(home.rglob('*')) == before
-            entry = registry.get_entry('fulcra_data_catalog', scope=manager.scope_key)
-            signed_out = entry.handler({})
-            assert 'not signed in' in signed_out, signed_out
-            assert 'fulcra_auth' in signed_out and 'fulcra_auth_device' in signed_out
-            with patch.object(plugin.tools, 'client') as factory:
-                factory.return_value.v1_catalog.return_value = [{'id': 'fixture'}]
-                assert entry.handler({}) == '[{"id": "fixture"}]'
-                factory.return_value.v1_catalog.assert_called_once_with()
-            assert plugin.plugin_setup.Setup(context).command('status').startswith('Fulcra settings')
-            fixture = ContactsTests()
-            fixture.setUp()
+            call = lambda tool, **args: registry.get_entry(tool, scope=manager.scope_key).handler(args)
+            signed_out = call('fulcra_data_catalog')
+            assert 'not signed in' in signed_out and 'fulcra_auth_device' in signed_out, signed_out
+            assert plugin.whats_new.Setup(context).command('status').startswith("Fulcra what's new")
+            (a, b), act, stop = accounts(plugin, alex, sura)
             try:
-                with patch.object(plugin.tools, 'client', return_value=fixture.api):
-                    send = registry.get_entry('fulcra_send_agent_message', scope=manager.scope_key)
-                    import json
-                    result = json.loads(send.handler(dict(connection=CHANNEL, sender='helper', body='Native probe', record_id=MID)))
-                    assert result['status'] == 'posted' and result['peer_acknowledged'] is False, result
-                    status = registry.get_entry('fulcra_set_contact_status', scope=manager.scope_key)
-                    from test_contacts import PEER
-                    assert json.loads(status.handler(dict(data_type=CHANNEL, peer_userid=PEER,
-                                                         attention=True, reason='Decision needed')))['verified'] is True
-                    update = registry.get_entry('fulcra_update_data_type', scope=manager.scope_key)
-                    assert json.loads(update.handler(dict(data_type=CHANNEL, name='Native contact')))['verified'] is True
-                    for tool in ('fulcra_create_agent_invitation', 'fulcra_accept_agent_invitation', 'fulcra_match_agent_invitations', 'fulcra_user_info'):
-                        assert registry.get_entry(tool, scope=manager.scope_key) is not None
+                invite = json.loads(call('fulcra_create_agent_invitation', inviter_name='Alex', recipient_name='Sura'))
+                act(b)
+                channel = json.loads(call('fulcra_create_data_type', base_type='event', name='Sura with Alex',
+                                          description='Agent contact channel', fields=CHANNEL_FIELDS))['id']
+                call('fulcra_create_share', name='connect-our-agents', data_types=[channel], files=[], user_ids=[alex])
+                assert json.loads(call('fulcra_send_agent_message', connection=channel, sender='Sura',
+                                       body='Hello', topic=invite['topic']))['status'] == 'posted'
+                act(a)
+                assert json.loads(call('fulcra_match_agent_invitations'))['results'][0]['status'] == 'matched'
+                assert json.loads(call('fulcra_send_agent_message', connection=sura, sender='Alex', body='Hi'))['status'] == 'posted'
+                act(b)
+                inbox = json.loads(call('fulcra_receive_agent_messages', agent_name='Sura'))
+                assert [m['body'] for m in inbox['messages']] == ['Hi'], inbox
             finally:
-                fixture.doCleanups()
+                stop()
         finally:
             reset_hermes_home_override(token)
-    print('Native registration and Event send/status/metadata handlers A→B→A: PASS')
+    print('Native registration and invite/accept/match/send/receive through the registry A→B→A: PASS')
 
 
 def main():
@@ -98,7 +89,7 @@ def main():
     mode.add_argument('--doctor', action='store_true')
     mode.add_argument('--validate', action='store_true')
     args = parser.parse_args()
-    probes = ('native', 'hermes_updates_probe.py', 'mesh_hermes_probe.py')
+    probes = ('native',)
     if args.validate:
         probes = ('validate',)
     elif args.doctor:

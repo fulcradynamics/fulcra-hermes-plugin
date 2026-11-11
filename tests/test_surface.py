@@ -1,62 +1,41 @@
-"""The public surface: explicit setup, native tools and read-only registration."""
-import argparse
+"""What the plugin registers and what its manifest and skills promise."""
+import re
 import unittest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
-from test_updates import Context, State, load_plugin
+from plugin import ROOT, Context, load
 
 
 class SurfaceTests(unittest.TestCase):
-    def test_mesh_resolves_state_only_when_called(self):
-        plugin = load_plugin()
-        ctx = Context()
-        del ctx.state
-        with patch.object(plugin.mesh, 'make_handler') as factory:
-            plugin.register(ctx)
-            factory.assert_not_called()
-            args = {'local_agent': 'helper'}
-            for state in (State(), State()):
-                ctx.state = state
-                result = ctx.tools['fulcra_receive_agent_messages'](args, session_id='session')
-                factory.assert_called_with(state)
-                factory.return_value.assert_called_with(args, session_id='session')
-                self.assertIs(result, factory.return_value.return_value)
-
-    def test_registration_keeps_tools_and_skills_without_model_interception(self):
-        plugin = load_plugin()
-        ctx = Context()
-        ctx.register_middleware = Mock()
-        ctx.register_skill = Mock()
-        before = ctx.config.copy()
+    def test_registration_matches_the_manifest_without_side_effects(self):
+        plugin, ctx = load(), Context()
+        ctx.state.set = Mock()
         plugin.register(ctx)
-        self.assertEqual(ctx.config, before)
-        self.assertEqual(ctx.state.values, {})
-        ctx.register_middleware.assert_not_called()
-        self.assertEqual(set(ctx.tools), set(plugin.tools.TOOL_SCHEMAS) |
-                         {'fulcra_receive_agent_messages', 'fulcra_configure_updates'})
-        self.assertEqual({call.args[0] for call in ctx.register_skill.call_args_list},
-                         {'context'})
-
-    def test_setup_registers_only_explicit_frontends(self):
-        plugin = load_plugin()
-        ctx = Context()
-        ctx.register_hook = Mock()
-        ctx.register_command = Mock()
-        ctx.register_cli_command = Mock()
-        plugin.plugin_setup.register(ctx)
-        ctx.register_hook.assert_not_called()
-        ctx.register_command.assert_called_once()
-        ctx.register_cli_command.assert_called_once()
+        manifest = (ROOT / 'plugin.yaml').read_text()
+        listed = lambda key: re.findall(r'- (\S+)', re.search(rf'^{key}:\n((?:  - .*\n)+)', manifest, re.M)[1])
+        self.assertEqual(sorted(ctx.tools), sorted(listed('provides_tools')))
+        self.assertEqual(sorted(ctx.hooks), sorted(listed('provides_hooks')))
+        self.assertEqual(set(ctx.commands), {'fulcra', 'cli fulcra'})
         self.assertEqual(ctx.config, {})
-        self.assertEqual(ctx.state.values, {})
+        ctx.state.set.assert_not_called()
+        self.assertEqual(sorted(ctx.skills), sorted(p.parent.name for p in (ROOT / 'skills').glob('*/SKILL.md')))
 
-    def test_setup_views_are_read_only(self):
-        setup = load_plugin().plugin_setup.Setup(Context())
-        with patch.object(setup.ctx.state, 'set') as write:
-            for command in ('', 'setup', 'status', 'help', 'setup --help'):
-                self.assertIn('Fulcra settings', setup.command(command))
-            parser = argparse.ArgumentParser()
-            setup.cli_setup(parser)
-            setup.cli(parser.parse_args(['status']))
-            write.assert_not_called()
-        self.assertEqual(setup.ctx.config, {})
+    def test_settings_match_the_manifest(self):
+        manifest = (ROOT / 'plugin.yaml').read_text().split('config_schema:')[1]
+        self.assertEqual(re.findall(r'^  (\S+):$', manifest, re.M), list(load().whats_new.SETTINGS))
+
+    def test_skills_name_only_real_tools_and_skills(self):
+        ctx = Context()
+        load().register(ctx)
+        for path in (ROOT / 'skills').rglob('*.md'):
+            text = path.read_text()
+            with self.subTest(path=path.relative_to(ROOT)):
+                fields = {'fulcra_userid', 'fulcra_data_types'}
+                self.assertLessEqual(set(re.findall(r'\bfulcra_[a-z_]+', text)) - fields, set(ctx.tools))
+                self.assertLessEqual(set(re.findall(r'`fulcra:([a-z-]+)`', text)), set(ctx.skills))
+                for link in re.findall(r'\]\(((?!https?:)[^)#]+)', text):
+                    self.assertTrue((path.parent / link).exists(), link)
+
+
+if __name__ == '__main__':
+    unittest.main()

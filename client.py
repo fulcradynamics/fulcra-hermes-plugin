@@ -13,8 +13,8 @@ from urllib.error import HTTPError
 import urllib.parse
 import urllib.request
 
-from ._vendor.core import FulcraAPI
-from ._vendor.credentials import FulcraCredentials
+from ._vendor.fulcra_api.core import FulcraAPI
+from ._vendor.fulcra_api.credentials import FulcraCredentials
 
 AUTH_LOCK = threading.RLock()
 # Only live factory clients retain a generation. Unknown disk replacements start
