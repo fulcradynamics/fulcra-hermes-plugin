@@ -1,60 +1,29 @@
 # Development
 
-Python 3.11+, `jsonschema>=4.23,<5`. No SDK install, CLI, uv, pandas, numpy, pyarrow
-or dateparser at runtime. See [_vendor provenance](../_vendor/PROVENANCE.md).
+Python 3.11+ with `jsonschema` 4.x; no other runtime dependencies.
 
     python -m unittest discover -s tests -v
-    FULCRA_UPSTREAM=/path/to/pinned/fulcra-api-python python -m unittest discover -s tests -v
     hermes plugins validate .
     hermes plugins doctor . --ci
     git diff --check
 
-Parity checks import the pinned original core with an import-only pandas sentinel;
-selected methods cannot use dataframe operations. Requests are mocked at the actual
-upstream module, socket connections blocked, clients pointed to loopback. Native
-local-HTTP tests exercise catalog, validation, JSONL ingestion, signed upload,
-byte download and refresh persistence using synthetic credentials. Retained workflow
-transcripts use a test-only native fixture adapter, not a production CLI transport.
-Contact lifecycle tests persist separate accounts' catalogs, schemas, grants and
-records to a disposable JSON store, then reopen clients for matching and recovery.
-`tests/fixtures/connection-schema.json` is the public MCP wire schema from
-`fulcra-context-mcp` revision `74f5041fbb012991e291697954c38e83901c7a04`
-(`fulcra_mcp/static/connection-schema.json`), not a private-helper dependency.
-These offline contracts do not establish live ingestion timing or MCP-host delivery.
+`tests/test_vendor.py` also runs when `FULCRA_API_PYTHON` and `FULCRA_CONTEXT_MCP` point to checkouts at the pinned revisions.
 
-For installed Hermes, use its already-provisioned Python and matching source, not
-a bootstrap launcher that might provision another runtime. Probes use disposable
-homes and scrubbed credentials; runtime probes also block Python socket access.
-Validation launches Hermes's own recording subprocess (the socket guard is not inherited):
+## Layout
 
-    python tests/native_hermes_probe.py /existing/runtime/bin/python /path/to/hermes --validate
-    python tests/native_hermes_probe.py /existing/runtime/bin/python /path/to/hermes --doctor
-    python tests/native_hermes_probe.py /existing/runtime/bin/python /path/to/hermes
+- `tools.py`: tool schemas and handlers.
+- `messages.py`: the receive tool and its per-agent cursors.
+- `whats_new.py`: the what's-new hooks, settings and `/fulcra` command.
+- `client.py`: credentials, deadlines and redirect handling around the vendored API client.
+- `skills/`: adapted from the Fulcra OpenAI plugin's skills (each names its source in `metadata.origin`).
+- `_vendor/`: code extracted from upstream; see [provenance](../_vendor/PROVENANCE.md).
 
-These separately invoke catalog validation, doctor discovery/registration and native tool/setup/hooks.
-Catalog validation uses a recording context without runtime state; defer state access
-until a registered handler runs. Doctor alone does not exercise this contract.
-The bootstrap-only stub prevents provisioning; real PluginContext, native settings,
-slash/CLI registration and hook dispatch remain in use. Probes verify Event
-send/receive and update notices, read-only startup, and turn hooks that leave
-user files and saved configuration unchanged.
+Registration has no network access, writes or background work. What's-new checks run in a background thread after a reply and never block a turn.
 
-## Architecture and limits
+## Native Hermes probes
 
-`_vendor` is a reproducible minimal upstream extraction. `client.py` owns shared
-credential storage and finite socket timeouts; `tools.py` owns explicit schemas,
-validation and native record/share/file adapters. Workflow modules consume structured
-Python values directly. No CLI argument builders or arbitrary method-invocation tool.
-Registration has no remote I/O, writes, workers or auth flows.
+With an installed Hermes, run the probe with its Python and source in a disposable, offline home:
 
-Ordinary requests have a 30-second budget.
-Timeouts are per blocking socket operation and checked between requests, not a hard
-wall-clock cancellation of DNS/streaming. Disabling a feature discards in-flight
-results but cannot cancel an already-running request. Results are fully read in
-memory before preview bounding: no memory/disk quota. Artifact storage retains
-baseline POSIX descriptor-relative safeguards and manual retention.
-
-Metadata guards and grant checks are not server-side transactions. Coordinate
-concurrent external writers. Update suppression is a best-effort
-path/type heuristic, not an audit log. Profile/account-switch, notification and
-mesh limitations remain in [setup](setup.md), [mesh](mesh.md) and the README.
+    python tests/native_hermes_probe.py /path/to/hermes/python /path/to/hermes/source --validate
+    python tests/native_hermes_probe.py /path/to/hermes/python /path/to/hermes/source --doctor
+    python tests/native_hermes_probe.py /path/to/hermes/python /path/to/hermes/source

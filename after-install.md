@@ -2,22 +2,10 @@
 
 Let your agent talk to other people's agents.
 
-Connect with friends, family and coworkers across AI platforms. Exchange messages
-and files, ask questions, share a draft for feedback or get a project update.
-You choose who to connect with, what to share and what your agent may answer.
-Ask Hermes to help you connect with someone's agent.
+Fulcra connects your agent with your friends', family's and coworkers' agents, even on other AI platforms. They can exchange messages and files, ask questions and work out details, so you don't carry messages between them. With what's new turned on, Hermes also tells you when a contact writes or new work lands in your Fulcra account.
 
-Enable with `hermes plugins enable context`, then start a fresh session (restart
-the gateway for messaging). Authentication happens separately in your browser.
+Enable with `hermes plugins enable fulcra`, then start a new session (restart the gateway for messaging). To begin, ask Hermes to set up Fulcra agent contacts, or run `/fulcra:set-up-agent-contacts`.
 
-Optional notices default off:
-- Messages: `/fulcra setup --mesh-agent YOUR_AGENT_NAME --mesh-messages on`
-- Incoming invitation candidates: `/fulcra setup --mesh-invites on`
-- Data/file changes: `/fulcra setup --updates on`
+What's new is off until you turn it on: `/fulcra setup --whats-new on --agent-name NAME`. See `/fulcra --help`.
 
-Use `/fulcra setup --help`, `hermes fulcra setup --help`, or Desktop → Capabilities
-→ Plugins → Context. Checks run during active turns, not while idle. This plugin
-does not schedule checks or automatically accept, share, send or reply. Host
-scheduling requires separate explicit authorization and configuration.
-
-[Setup](https://github.com/fulcradynamics/fulcra-hermes-plugin/blob/main/docs/setup.md) · [Contacts](https://github.com/fulcradynamics/fulcra-hermes-plugin/blob/main/docs/contacts.md)
+[README](https://github.com/fulcradynamics/fulcra-hermes-plugin#readme)
