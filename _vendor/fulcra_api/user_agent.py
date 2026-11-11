@@ -1,12 +1,4 @@
-# Extracted from fulcra-api-python 4a4769152e9770406fe66113e49e555f70db9201; see PROVENANCE.md.
-"""User-Agent header for the requests the library makes.
-
-Every request names the library and its version, so Fulcra can tell the
-library, the `fulcra` CLI and the tools built on them (such as the MCP server)
-apart from other HTTP clients. Callers add their own product token after it,
-e.g. `fulcra-api/0.1.55 python/3.12 fulcra-cli/0.1.55`. Nothing identifying the
-user or the machine goes in it.
-"""
+# Extracted from fulcra_api 4a4769152e9770406fe66113e49e555f70db9201; see PROVENANCE.md.
 import re
 import sys
 from . import __version__

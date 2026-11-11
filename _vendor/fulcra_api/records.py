@@ -1,15 +1,4 @@
-# Extracted from fulcra-api-python 4a4769152e9770406fe66113e49e555f70db9201; see PROVENANCE.md.
-"""High-level record-fetching operations.
-
-This module sits above the transport layer (the client classes in ``core``) and
-below any front-end (the CLI, the MCP server). It orchestrates *which* endpoint
-to call for a given resolved catalog entry and normalizes the response into a
-list of record dicts, so front-ends don't each re-implement that dispatch.
-
-Functions here take a data-access source (a ``FulcraAPI`` or
-``FulcraGroupParticipant``) as their first argument, return plain data, and raise
-plain ``ValueError`` -- no front-end-specific error types.
-"""
+# Extracted from fulcra_api 4a4769152e9770406fe66113e49e555f70db9201; see PROVENANCE.md.
 import json
 from datetime import datetime
 from uuid import UUID

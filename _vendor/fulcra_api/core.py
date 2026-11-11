@@ -1,4 +1,4 @@
-# Extracted from fulcra-api-python 4a4769152e9770406fe66113e49e555f70db9201; see PROVENANCE.md.
+# Extracted from fulcra_api 4a4769152e9770406fe66113e49e555f70db9201; see PROVENANCE.md.
 import base64
 import datetime
 import http.client
@@ -9,7 +9,7 @@ import os.path
 import urllib.parse
 import urllib.request
 from pathlib import PurePosixPath
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 from urllib.error import HTTPError, URLError
 import jsonschema
 from . import record_validation
@@ -22,9 +22,6 @@ FULCRA_OIDC_AUDIENCE = os.environ.get('FULCRA_OIDC_AUDIENCE', 'https://api.fulcr
 FULCRA_OIDC_SCOPE = os.environ.get('FULCRA_OIDC_SCOPE', 'openid profile name email offline_access')
 REFRESH_LEEWAY = datetime.timedelta(seconds=60)
 UNSET: Any = object()
-
-def _parse_ndjson(resp: bytes) -> List[Dict[str, Any]]:
-    return [json.loads(line) for line in resp.splitlines() if line.strip()]
 
 def _validation_message(error: jsonschema.ValidationError) -> str:
     if record_validation.is_unknown_fields_error(error):
@@ -50,6 +47,12 @@ def _boundary_timestamp(value: Any, name: str) -> Any:
     return value
 
 class FulcraDataAccessMixin:
+
+    def _v0_data_path(self, operation: str, fulcra_userid: Optional[str]=None) -> str:
+        raise NotImplementedError
+
+    def fulcra_api(self, url_path: str, method: str='GET', query: Optional[dict]=None, data: Optional[Union[dict, List[dict]]]=None, return_http_response: bool=False, content_type: str='application/json') -> Any:
+        raise NotImplementedError
 
     def metric_samples(self, start_time: Union[str, datetime.datetime], end_time: Union[str, datetime.datetime], metric: str, fulcra_userid: Optional[str]=None) -> List[Dict]:
         params = {'start_time': start_time, 'end_time': end_time, 'metric': metric}
@@ -86,6 +89,13 @@ class FulcraAPI(FulcraDataAccessMixin):
             self.fulcra_credentials = FulcraCredentials(**kwargs)
         self.refresh_callback = refresh_callback
         self.credentials_store = credentials_store
+
+    def get_token(self, device_code: str) -> Tuple[Optional[str], Optional[datetime.datetime], Optional[str]]:
+        try:
+            creds = self.oidc.get_token('urn:ietf:params:oauth:grant-type:device_code', {'device_code': device_code})
+            return (creds.access_token, creds.access_token_expiration, creds.refresh_token)
+        except Exception:
+            return (None, None, None)
 
     def refresh_access_token(self) -> bool:
         if self.fulcra_credentials is None or self.fulcra_credentials.refresh_token is None:
@@ -318,6 +328,36 @@ class FulcraAPI(FulcraDataAccessMixin):
             updates.update(self._shared_data_updates(start_time, end_time, max_peers))
         return updates
 
+    def _shared_data_updates(self, start_time: str | datetime.datetime, end_time: str | datetime.datetime, max_peers: int | None) -> dict:
+        try:
+            own = self.get_fulcra_userid()
+        except Exception:
+            own = None
+        peers: Dict[str, Optional[str]] = {}
+        for grant in self.get_shared_datasets():
+            if grant.get('grant_type') == 'self':
+                continue
+            uid = grant.get('sharing_fulcra_userid')
+            if uid and uid != own and (uid not in peers):
+                peers[uid] = grant.get('sharing_fulcra_user_name')
+        polled = list(peers.items())[:max_peers]
+        shared = {}
+        for uid, name in polled:
+            try:
+                peer_updates = self.data_updates(start_time, end_time, fulcra_userid=uid)
+            except HTTPError as exc:
+                shared[uid] = {'name': name, 'error': f'HTTP {exc.code}'}
+                continue
+            except (TimeoutError, URLError):
+                shared[uid] = {'name': name, 'error': 'timeout'}
+                continue
+            if peer_updates.get('data_types') or peer_updates.get('file_changes'):
+                shared[uid] = {'name': name, **peer_updates}
+        result: Dict[str, Any] = {'shared': shared, 'peers_checked': len(polled)}
+        if len(peers) > len(polled):
+            result['peers_skipped'] = [uid for uid in list(peers)[len(polled):]]
+        return result
+
     def get_shared_datasets(self) -> List[Dict]:
         resp = self.fulcra_api('/user/v1/dataset')
         return json.loads(resp)
@@ -464,9 +504,6 @@ class FulcraAPI(FulcraDataAccessMixin):
 
     def restore_file(self, file_id: str):
         return json.loads(self.fulcra_api(f'/input/v1/file_upload/{file_id}/restore', method='POST'))
-
-    def group_participant(self, group_id: str, participant_id: str) -> 'FulcraGroupParticipant':
-        return FulcraGroupParticipant(self, group_id, participant_id)
 
 class FulcraGroupParticipant(FulcraDataAccessMixin):
 

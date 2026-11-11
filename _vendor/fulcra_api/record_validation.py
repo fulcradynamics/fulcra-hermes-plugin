@@ -1,17 +1,4 @@
-# Extracted from fulcra-api-python 4a4769152e9770406fe66113e49e555f70db9201; see PROVENANCE.md.
-"""Record validation helpers for FulcraAPI.validate_records.
-
-Two things jsonschema doesn't check on its own, both of which otherwise cost a
-record silently after it's uploaded:
-
-- `date-time` values: jsonschema only checks the format when the optional
-  rfc3339-validator package is installed, and RFC 3339 alone doesn't match what
-  the ETLs accept. `record_format_checker` checks it the way the ETL for the
-  data type's API version parses it.
-- Fields a data type doesn't declare: the ETLs keep only a schema's properties
-  and drop everything else. `strict_schema` makes those an error, and
-  `unknown_fields_message` explains them.
-"""
+# Extracted from fulcra_api 4a4769152e9770406fe66113e49e555f70db9201; see PROVENANCE.md.
 import re
 from datetime import datetime
 import jsonschema

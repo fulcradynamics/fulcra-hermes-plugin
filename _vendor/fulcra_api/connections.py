@@ -1,20 +1,9 @@
-# Extracted from fulcra-api-python 4a4769152e9770406fe66113e49e555f70db9201; see PROVENANCE.md.
-"""Messages between agents on different Fulcra accounts.
-
-Implements the protocol of the ``connect-our-agents`` skill
-(https://github.com/fulcradynamics/agent-skills): each contact in a connection
-has their own channel, a v1 ``Event/<uuid>`` data type with the fields in
-``CHANNEL_FIELDS``, and shares exactly that channel with everyone else in the
-connection through a datashare named ``connect-our-agents: ...``. A message is
-one record on the sender's own channel.
-
-Like ``records``, this module sits between the transport (``core``) and the
-front-ends (the CLI, the MCP server): functions take a ``FulcraAPI`` as their
-first argument, return plain data, and raise plain ``ValueError``.
-"""
+# Extracted from fulcra_api 4a4769152e9770406fe66113e49e555f70db9201; see PROVENANCE.md.
 from uuid import UUID, uuid4
 import jsonschema
 import jsonschema.exceptions
+SHARE_NAME_PREFIX = 'connect-our-agents'
+LEGACY_SHARE_NAME_PREFIXES = ('connect-agents-with-anyone',)
 CHANNEL_FIELDS = {'properties': {'sender': {'type': 'string', 'minLength': 1, 'maxLength': 128, 'description': 'Name of the agent contact that wrote the message'}, 'kind': {'type': 'string', 'enum': ['message', 'reply', 'ack'], 'description': 'message starts something; reply answers one; ack says you have read one'}, 'body': {'type': 'string', 'minLength': 1, 'maxLength': 4000, 'description': 'The message text'}, 'recipients': {'type': 'array', 'minItems': 1, 'maxItems': 32, 'items': {'type': 'string', 'minLength': 1, 'maxLength': 128}, 'description': 'Agent names the message is for; leave out for everyone in the connection'}, 'topic': {'type': 'string', 'minLength': 1, 'maxLength': 128, 'description': 'Short thread name; replies reuse it'}, 'in_reply_to': {'type': 'string', 'format': 'uuid', 'description': 'The id of the message being answered or acknowledged'}, 'priority': {'type': 'string', 'enum': ['P1', 'P2', 'P3'], 'description': 'P1 urgent, P2 normal, P3 low'}, 'artifacts': {'type': 'array', 'maxItems': 32, 'description': 'Files the message points to, shared separately', 'items': {'type': 'object', 'required': ['path'], 'properties': {'path': {'type': 'string', 'minLength': 1}, 'version': {'type': 'string', 'minLength': 1, 'description': 'File version or content hash, if it matters which one'}, 'owner': {'type': 'string', 'format': 'uuid', 'description': 'Fulcra user ID of the account holding the file, if not the sender'}}}}}, 'required': ['sender', 'kind', 'body']}
 MAX_BODY = CHANNEL_FIELDS['properties']['body']['maxLength']
 
@@ -23,6 +12,53 @@ def _uuid(value: str, what: str) -> str:
         return str(UUID(value)).lower()
     except (ValueError, TypeError, AttributeError):
         raise ValueError(f'{what} must be a UUID, got {value!r}.')
+
+def _channel_id(value: str) -> str | None:
+    base, sep, rest = value.partition('/')
+    if not sep or base.lower() != 'event':
+        return None
+    try:
+        return f'Event/{UUID(rest)}'
+    except ValueError:
+        return None
+
+def _is_connection_share(share: dict) -> bool:
+    return (share.get('datashare_name') or '').startswith((SHARE_NAME_PREFIX, *LEGACY_SHARE_NAME_PREFIXES))
+
+def _channels(share: dict) -> list[str]:
+    return [c for t in share.get('fulcra_data_types') or [] if (c := _channel_id(t))]
+
+def resolve_connection(outgoing_shares: list[dict], connection: str) -> tuple[str, list[str]]:
+    shares = [s for s in outgoing_shares if _is_connection_share(s)]
+
+    def people(channel: str) -> list[str]:
+        found = []
+        for share in shares:
+            if channel in _channels(share):
+                for p in share.get('permissions') or []:
+                    if (user := p.get('allowed_fulcra_userid')) and user.lower() not in found:
+                        found.append(user.lower())
+        return found
+    channel = _channel_id(connection)
+    if channel is not None:
+        with_people = people(channel)
+        if not with_people:
+            raise ValueError(f"None of your '{SHARE_NAME_PREFIX}: ...' shares includes {channel}. Use your own channel's ID, after sharing it with the other person.")
+        return (channel, with_people)
+    try:
+        user = _uuid(connection, 'connection')
+    except ValueError:
+        raise ValueError(f"connection must be your channel's ID (Event/<uuid>) or the other person's Fulcra user ID, got {connection!r}.")
+    candidates = []
+    for share in shares:
+        users = {(p.get('allowed_fulcra_userid') or '').lower() for p in share.get('permissions') or []}
+        if user in users:
+            candidates += [c for c in _channels(share) if c not in candidates]
+    if not candidates:
+        raise ValueError(f"None of your channels is shared with {user} through a '{SHARE_NAME_PREFIX}: ...' share. Create a channel and share it with them first.")
+    if len(candidates) > 1:
+        raise ValueError(f"More than one of your channels is shared with {user}: {', '.join(candidates)}. Give the channel's ID instead.")
+    return (candidates[0], people(candidates[0]))
 
 def build_message(*, sender: str, body: str, kind: str='message', topic: str | None=None, recipients: list[str] | None=None, priority: str | None=None, in_reply_to: str | None=None, record_id: str | None=None, sources: list[str] | None=None) -> dict:
     if kind not in ('message', 'reply', 'ack'):

@@ -1,5 +1,4 @@
-# Extracted from fulcra-api-python 4a4769152e9770406fe66113e49e555f70db9201; see PROVENANCE.md.
-"""OIDC mechanics for authenticating with the Fulcra API"""
+# Extracted from fulcra_api 4a4769152e9770406fe66113e49e555f70db9201; see PROVENANCE.md.
 import datetime
 import json
 import time
@@ -7,7 +6,7 @@ import urllib.parse
 import urllib.request
 from urllib.error import HTTPError
 from dataclasses import dataclass, field
-from typing import Callable, Optional, Tuple
+from typing import Tuple
 from .credentials import FulcraCredentials, jwt_expiration
 from .user_agent import default_user_agent
 TOKEN_REQUEST_TIMEOUT = 30
