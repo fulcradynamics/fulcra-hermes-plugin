@@ -11,15 +11,15 @@ import threading
 import unittest
 from unittest.mock import patch
 from urllib.parse import urlsplit, parse_qs
-from test_tools import load_tools
+from plugin import load
 
 ID = '01234567-89ab-cdef-0123-456789abcdef'
 
 
 class CredentialTests(unittest.TestCase):
     def test_local_http_catalog_record_upload_download_and_refresh(self):
-        tools = load_tools()
-        native = importlib.import_module('tool_fixture_plugin.client')
+        tools = load().tools
+        native = importlib.import_module('fulcra_plugin.client')
         received = []
         payload = b'\xffbinary\r\n'
         class Handler(BaseHTTPRequestHandler):
@@ -80,8 +80,8 @@ class CredentialTests(unittest.TestCase):
 
     def test_cross_origin_redirect_drops_bearer(self):
         import urllib.request
-        load_tools()
-        native = importlib.import_module('tool_fixture_plugin.client')
+        load()
+        native = importlib.import_module('fulcra_plugin.client')
         self.assertTrue(hasattr(native, 'PrivateRedirect'), 'redirect privacy adapter missing')
         request = urllib.request.Request('https://api.example/file', headers={'Authorization': 'Bearer private'})
         redirected = native.PrivateRedirect().redirect_request(request, None, 302, 'found', {}, 'https://storage.example/signed')
@@ -90,7 +90,7 @@ class CredentialTests(unittest.TestCase):
         self.assertEqual(same.get_header('Authorization'), 'Bearer private')
 
     def test_os_user_path_not_profile_or_xdg(self):
-        load_tools()
-        native = importlib.import_module('tool_fixture_plugin.client')
+        load()
+        native = importlib.import_module('fulcra_plugin.client')
         with patch.dict('os.environ', {'HERMES_HOME': '/profiles/a', 'XDG_CONFIG_HOME': '/different'}):
             self.assertEqual(native.credential_path(), Path.home() / '.config/fulcra/credentials.json')
