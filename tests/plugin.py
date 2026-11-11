@@ -139,9 +139,11 @@ class Account:
                 for e in jsonschema.Draft202012Validator(schema).iter_errors(row)]
 
     def record_data_type(self, data_type, rows, api_version):
+        # Like the API, read records back with every declared field, null when unset.
+        unset = dict.fromkeys(self.v1_catalog_schema(data_type, api_version).get('properties', {}))
         stamp = now().isoformat()
         self.rows.setdefault(data_type, []).extend(
-            dict(r, start_time=r.get('start_time', stamp), processed=stamp) for r in rows)
+            {**unset, **r, 'start_time': r.get('start_time', stamp), 'processed': stamp} for r in rows)
         return {'upload_id': str(uuid4())}
 
     def data_updates(self, start_time, end_time, fulcra_userid=None, include_shared=False):

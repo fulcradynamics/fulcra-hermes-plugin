@@ -38,7 +38,8 @@ def channels(shares, own):
 
 
 def _message(row, agent):
-    fields = {k: v for k, v in row.items() if k in CHANNEL_FIELDS['properties']}
+    # The API reads unset fields back as null; treat them as absent.
+    fields = {k: v for k, v in row.items() if k in CHANNEL_FIELDS['properties'] and v is not None}
     try:
         jsonschema.validate(fields, {'type': 'object', **CHANNEL_FIELDS}, format_checker=jsonschema.FormatChecker())
     except jsonschema.ValidationError:
