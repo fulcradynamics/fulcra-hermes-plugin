@@ -1,6 +1,7 @@
 """Tool boundaries: argument checks, error text and request routing, offline."""
 import importlib
 import io
+import json
 import tempfile
 import unittest
 from email.message import Message
@@ -60,14 +61,24 @@ class ToolTests(unittest.TestCase):
         with patch.object(self.tools, 'client') as factory:
             api = factory.return_value
             api.get_datashares.return_value = [{'datashare_id': ID}]
-            self.tools.fulcra_delete_share({'share_id': ID})
+            self.assertEqual(json.loads(self.tools.fulcra_delete_share({'share_id': ID})), {'status': 'deleted', 'share_id': ID})
             api.delete_datashare.assert_called_once_with(ID)
             api.get_datashares.return_value = []
             api.get_shared_datasets.return_value = [{'grant_id': ID, 'grant_type': 'group'}]
             self.assertTrue(self.tools.fulcra_delete_share({'share_id': ID}).startswith('Error:'))
             api.get_shared_datasets.return_value = [{'grant_id': ID, 'grant_type': 'user'}]
-            self.tools.fulcra_delete_share({'share_id': ID})
+            self.assertEqual(json.loads(self.tools.fulcra_delete_share({'share_id': ID})), {'status': 'left', 'share_id': ID})
             api.delete_dataset_permission.assert_called_once_with(ID)
+
+    def test_file_and_data_type_removals_report_what_changed(self):
+        with patch.object(self.tools, 'client') as factory:
+            api = factory.return_value
+            api.resolve_filepath.return_value = [{'id': ID}]
+            self.assertEqual(json.loads(self.tools.fulcra_file_delete({'path': '/a.txt'})),
+                             {'status': 'deleted', 'path': '/a.txt', 'version_id': ID})
+            self.assertEqual(json.loads(self.tools.fulcra_data_type_lifecycle({'data_type': 'MomentAnnotation/' + ID, 'action': 'archive'})),
+                             {'status': 'archived', 'data_type': 'MomentAnnotation/' + ID})
+            api.delete_annotation.assert_called_once_with(ID)
 
     def test_share_selector_replacement_never_keeps_all_data(self):
         with patch.object(self.tools, 'client') as factory:
