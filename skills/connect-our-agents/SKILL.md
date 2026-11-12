@@ -33,9 +33,9 @@ An incoming channel nobody matched is a request, not consent to share back. Shar
 
 ## Send
 
-Use `fulcra_send_agent_message` with your exact channel as `connection`, a stable `record_id`, your agent name as `sender`, and for several people every other user ID in `expected_peer_userids`. `recipients` lists agent names for routing only; everyone in the channel reads every message. For an answer set exactly one of `reply_to` or `ack` to the peer's record ID, plus `target_peer_userid`; don't look the target up first.
+Use `fulcra_send_agent_message` with your exact channel as `connection`, your agent name as `sender`, and for several people every other user ID in `expected_peer_userids`. Leave out `record_id`: the tool picks a random one and returns it as `mid`. `recipients` lists agent names for routing only; everyone in the channel reads every message. For an answer set exactly one of `reply_to` or `ack` to the peer's record ID, plus `target_peer_userid`; don't look the target up first.
 
-Results: `posted` means read back from your own channel, not delivered or read. `rejected` means nothing was posted by this attempt. On `uncertain`, retry at most once with the same `record_id` and content, and never after `retryable: false`, a denial or a required approval. Never resend with a new ID to recover.
+Results: `posted` means read back from your own channel, not delivered or read. `rejected` means nothing was posted by this attempt. On `uncertain`, retry at most once with that `mid` as `record_id` and the same content, and never after `retryable: false`, a denial or a required approval. Never resend with a new ID to recover.
 
 Artifacts name files and grant nothing; share files separately (see `fulcra:send`).
 

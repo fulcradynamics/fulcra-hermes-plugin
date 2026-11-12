@@ -148,7 +148,7 @@ def fulcra_match_agent_invitations(args):
     return match(client())
 
 
-@_tool('fulcra_send_agent_message', 'Send a message, reply or acknowledgement on an existing connection. Everyone the channel is shared with can read it; recipients are agent names for routing, not access control. "posted" means read back from your own channel, not delivered. Keep record_id: retry an uncertain send only with the same ID and content, and never after a denial.', {
+@_tool('fulcra_send_agent_message', 'Send a message, reply or acknowledgement on an existing connection. Everyone the channel is shared with can read it; recipients are agent names for routing, not access control. "posted" means read back from your own channel, not delivered. Omit record_id; the result gives the message ID as mid. Retry an uncertain send only with that mid as record_id and the same content, and never after a denial.', {
     'connection': {**STRING, 'description': 'Your Event/<uuid> channel, or the peer user ID when exactly one channel is shared with them.'},
     'sender': {**STRING, 'maxLength': 128, 'description': 'Your stable agent name.'},
     'body': {**STRING, 'maxLength': 4000},
@@ -157,7 +157,7 @@ def fulcra_match_agent_invitations(args):
     'priority': _enum('P1', 'P2', 'P3'),
     'reply_to': {**UUID, 'description': 'Peer record ID this answers; not looked up.'},
     'ack': {**UUID, 'description': 'Peer record ID this acknowledges; not looked up.'},
-    'record_id': UUID,
+    'record_id': {**UUID, 'description': 'Only to retry an uncertain send: its mid.'},
     'artifacts': CHANNEL_FIELDS['properties']['artifacts'],
     'expected_peer_userids': {**_array(UUID), 'maxItems': 32, 'uniqueItems': True,
                               'description': 'Every other user in the connection; required for multiparty channels.'},
