@@ -27,3 +27,7 @@ With an installed Hermes, run the probe with its Python and source in a disposab
     python tests/native_hermes_probe.py /path/to/hermes/python /path/to/hermes/source --validate
     python tests/native_hermes_probe.py /path/to/hermes/python /path/to/hermes/source --doctor
     python tests/native_hermes_probe.py /path/to/hermes/python /path/to/hermes/source
+
+## Acceptance
+
+`tests/acceptance/` holds end-to-end scenarios: a real Hermes with the plugin installed, driven turn by turn against test accounts, with a tester playing the user and the contact.
