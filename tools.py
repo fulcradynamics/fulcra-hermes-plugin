@@ -359,7 +359,7 @@ def fulcra_file_list(args):
     return client().list_files(args.get('path', '/'), fulcra_userid=args.get('user_id'))
 
 
-@_tool('fulcra_file_stat', 'Read file metadata and versions. Your own deleted versions can be restored.', {'path': REMOTE_PATH, 'user_id': UUID}, ('path',))
+@_tool('fulcra_file_stat', 'Read file metadata and earlier version IDs for fulcra_file_restore. A deleted file is not found.', {'path': REMOTE_PATH, 'user_id': UUID}, ('path',))
 def fulcra_file_stat(args):
     return client().file_stat(args['path'], args.get('user_id'))
 
@@ -395,12 +395,12 @@ def fulcra_file_download(args):
         raise LocalError('Binary file: supply local_path.') from None
 
 
-@_tool('fulcra_file_delete', 'Delete the latest version of one file (not a folder). Keep its version ID to restore it.', {'path': REMOTE_PATH}, ('path',))
+@_tool('fulcra_file_delete', 'Delete the latest version of one file (not a folder); the path then reads as not found. Earlier versions are kept, so note their IDs with fulcra_file_stat first to restore one later. The deleted version cannot be restored.', {'path': REMOTE_PATH}, ('path',))
 def fulcra_file_delete(args):
     api = client()
     return api.delete_file(api.resolve_filepath(args['path'])[0]['id'])
 
 
-@_tool('fulcra_file_restore', 'Restore an exact file version ID from fulcra_file_stat.', {'version_id': UUID}, ('version_id',))
+@_tool('fulcra_file_restore', 'Make an earlier version of your file the latest again. Deleted versions cannot be restored.', {'version_id': UUID}, ('version_id',))
 def fulcra_file_restore(args):
     return client().restore_file(args['version_id'])
