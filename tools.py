@@ -243,9 +243,11 @@ def fulcra_update_share(args):
 def fulcra_delete_share(args):
     api = client()
     if any(s.get('datashare_id') == args['share_id'] for s in api.get_datashares()):
-        return api.delete_datashare(args['share_id'])
+        api.delete_datashare(args['share_id'])
+        return {'status': 'deleted', 'share_id': args['share_id']}
     if any(s.get('grant_id') == args['share_id'] and s.get('grant_type') == 'user' for s in api.get_shared_datasets()):
-        return api.delete_dataset_permission(args['share_id'])
+        api.delete_dataset_permission(args['share_id'])
+        return {'status': 'left', 'share_id': args['share_id']}
     raise LocalError('No outgoing share or individual incoming grant has that ID; leave group grants by leaving the group.')
 
 
@@ -318,11 +320,14 @@ def fulcra_update_data_type(args):
 def fulcra_data_type_lifecycle(args):
     api = client()
     base, _, type_id = args['data_type'].partition('/')
+    archive = args['action'] == 'archive'
     if base in ('Event', 'Metric'):
-        return (archive_data_type if args['action'] == 'archive' else restore_data_type)(api, base, type_id)
-    if base.endswith('Annotation') and type_id:
-        return (api.delete_annotation if args['action'] == 'archive' else api.restore_annotation)(type_id)
-    raise LocalError('Use the full <BaseType>/<uuid> ID.')
+        (archive_data_type if archive else restore_data_type)(api, base, type_id)
+    elif base.endswith('Annotation') and type_id:
+        (api.delete_annotation if archive else api.restore_annotation)(type_id)
+    else:
+        raise LocalError('Use the full <BaseType>/<uuid> ID.')
+    return {'status': 'archived' if archive else 'restored', 'data_type': args['data_type']}
 
 
 @_tool('fulcra_get_records', "Read records between timezone-aware start_time and end_time, or the newest with latest=true (v1 only). user_id reads a sharing user's data. Raw sources can overlap; don't sum blindly.", {'data_type': DATA_TYPE, **TIMES, 'latest': BOOLEAN, 'api_version': STRING, 'user_id': UUID}, ('data_type',))
@@ -359,7 +364,7 @@ def fulcra_file_list(args):
     return client().list_files(args.get('path', '/'), fulcra_userid=args.get('user_id'))
 
 
-@_tool('fulcra_file_stat', 'Read file metadata and versions. Your own deleted versions can be restored.', {'path': REMOTE_PATH, 'user_id': UUID}, ('path',))
+@_tool('fulcra_file_stat', 'Read file metadata and earlier version IDs for fulcra_file_restore. A deleted file is not found.', {'path': REMOTE_PATH, 'user_id': UUID}, ('path',))
 def fulcra_file_stat(args):
     return client().file_stat(args['path'], args.get('user_id'))
 
@@ -395,12 +400,14 @@ def fulcra_file_download(args):
         raise LocalError('Binary file: supply local_path.') from None
 
 
-@_tool('fulcra_file_delete', 'Delete the latest version of one file (not a folder). Keep its version ID to restore it.', {'path': REMOTE_PATH}, ('path',))
+@_tool('fulcra_file_delete', 'Delete the latest version of one file (not a folder); the path then reads as not found. Earlier versions are kept, so note their IDs with fulcra_file_stat first to restore one later. The deleted version cannot be restored.', {'path': REMOTE_PATH}, ('path',))
 def fulcra_file_delete(args):
     api = client()
-    return api.delete_file(api.resolve_filepath(args['path'])[0]['id'])
+    version_id = api.resolve_filepath(args['path'])[0]['id']
+    api.delete_file(version_id)
+    return {'status': 'deleted', 'path': args['path'], 'version_id': version_id}
 
 
-@_tool('fulcra_file_restore', 'Restore an exact file version ID from fulcra_file_stat.', {'version_id': UUID}, ('version_id',))
+@_tool('fulcra_file_restore', 'Make an earlier version of your file the latest again. Deleted versions cannot be restored.', {'version_id': UUID}, ('version_id',))
 def fulcra_file_restore(args):
     return client().restore_file(args['version_id'])
