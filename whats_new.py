@@ -15,7 +15,7 @@ import threading
 import time
 from datetime import datetime, timedelta, timezone
 
-from . import messages, tools
+from . import mcp_api, messages, tools
 
 LOG = logging.getLogger(__name__)
 STATE_KEY = 'whats-new'
@@ -172,7 +172,7 @@ class WhatsNew:
 
     def _fetch(self, scope, snapshot, now):
         try:
-            items = check(tools.client(timeout=60), snapshot, snapshot['settings'], now)
+            items = check(mcp_api.MCPApi(self.ctx), snapshot, snapshot['settings'], now)
             with _lock(self.ctx):
                 state = self.ctx.state.get(STATE_KEY, {})
                 if state.get('settings') == snapshot['settings']:
@@ -250,15 +250,21 @@ class Setup:
         return text
 
     def apply(self, args):
-        if args.pop('action', 'setup') == 'status' and args:
+        action = args.pop('action', 'setup')
+        if action == 'status' and args:
             raise ValueError('status takes no settings')
+        connection = []
+        if action == 'setup' and not mcp_api.configured():
+            mcp_api.connect(self.ctx.get_config('mcp-url', mcp_api.DEFAULT_URL))
+            connection = [f'Added the Fulcra MCP server ({mcp_api.SERVER}). Sign in with: hermes mcp login {mcp_api.SERVER}',
+                          'Then start a new session (restart the gateway for messaging).', '']
         changes = {k: v == 'on' if SETTINGS[k]['type'] == 'boolean' else v for k, v in args.items()}
         with _lock(self.ctx):
             values = {key: self.ctx.get_config(key, spec['default']) for key, spec in SETTINGS.items()}
             validate({**values, **changes})
             for key, value in changes.items():
                 self.ctx.set_config(key, value)
-        lines = ["Fulcra what's new (this profile; trusted chats only):"]
+        lines = connection + ["Fulcra what's new (this profile; trusted chats only):"]
         lines += [f'  {key} = {json.dumps(self.ctx.get_config(key, spec["default"]))}' for key, spec in SETTINGS.items()]
         lines.append('Change with /fulcra setup --whats-new on --agent-name NAME; see /fulcra --help.')
         return '\n'.join(lines)

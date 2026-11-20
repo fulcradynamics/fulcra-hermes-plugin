@@ -59,7 +59,9 @@ def receive(api, own, pairs, agent, cursors, since=None, initial=None):
         previous = cursors.get(key, {})
         start = since or (tools.timestamp(previous['until']) - OVERLAP if previous else initial)
         seen = list(previous.get('seen', []))
-        for row in tools.records(api, channel, start, now, user_id=owner):
+        fetch = getattr(api, 'mcp_records', None)
+        rows = fetch(channel, start, now, owner) if fetch else tools.records(api, channel, start, now, user_id=owner)
+        for row in rows:
             message = _message(row, agent)
             if message is None:
                 skipped += 1
