@@ -24,14 +24,21 @@ def _outcome(fn):
                 'seconds': round(time.monotonic() - started, 2)}
 
 
-def _probe():
+def _probe(discover=False):
     from tools.registry import registry
+    discovered = None
+    if discover:
+        started = time.monotonic()
+        from tools.mcp_tool_discovery import discover_mcp_tools
+        names = discover_mcp_tools(allowed_mcp_names=['fulcra-context'])
+        discovered = {'new_tools': len(names), 'seconds': round(time.monotonic() - started, 2)}
     entry = registry.get_entry(TOOL)
     mcp_names = [n for n in registry.get_all_tool_names() if n.startswith('mcp__fulcra_context__')] \
         if hasattr(registry, 'get_all_tool_names') else None
     ctxs = [m._FULCRA_CTX for m in list(sys.modules.values()) if getattr(m, '_FULCRA_CTX', None) is not None]
     return {
         'pid': os.getpid(),
+        'discovered': discovered,
         'process': ' '.join(sys.argv[:4])[:160],
         'registered': entry is not None,
         'fulcra_context_tools': len(mcp_names) if mcp_names is not None else 'unknown',
@@ -57,5 +64,5 @@ def _scoped_entry(registry):
 
 
 @router.get('/probe')
-async def probe():
-    return await asyncio.to_thread(_probe)
+async def probe(discover: bool = False):
+    return await asyncio.to_thread(_probe, discover)
