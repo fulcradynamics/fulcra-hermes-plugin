@@ -11,8 +11,8 @@ from datetime import datetime, timedelta, timezone
 
 KEY = 'mcp-probe'
 CALLS = {
-    'mcp__fulcra__get_user_info': lambda: {},
-    'mcp__fulcra__get_data_updates': lambda: {
+    'mcp__fulcra_context__get_user_info': lambda: {},
+    'mcp__fulcra_context__get_data_updates': lambda: {
         'start_time': (datetime.now(timezone.utc) - timedelta(days=1)).isoformat(),
         'end_time': datetime.now(timezone.utc).isoformat()},
 }
