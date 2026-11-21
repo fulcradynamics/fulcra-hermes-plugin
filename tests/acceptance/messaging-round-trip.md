@@ -6,7 +6,7 @@ Preconditions and runtime: a fresh Hermes with its own Hermes home and OS home, 
 
 The simulated user (Alex):
 - has no invitation from Sura and asks the agent to make one;
-- when told Fulcra isn't connected, runs `hermes fulcra connect` in a terminal as the agent says, says yes to signing in, and the tester completes the browser sign-in as the user's account; then continues in a new chat with the same request;
+- when told Fulcra isn't connected, runs the `hermes mcp add fulcra …` command the agent gives, in a terminal, and the tester completes the browser sign-in as the user's account; for what's new, also runs the `mcp_allowlist` grant command from `/fulcra connect`; then continues in a new chat with the same request;
 - accepts “Alex's Hermes” as the agent's name; wants what's new on, checking every 60 seconds; no scheduled checks;
 - says when Sura's agent has accepted, then asks the agent to check messages;
 - asks the agent to ask Sura's agent whether Sura is free for dinner on Friday at 7;
@@ -18,7 +18,7 @@ The peer (Sura's agent, played by the tester with the CLI):
 - after the dinner question arrives, replies on its channel with `in_reply_to` set to that message: Sura is free and suggests a restaurant.
 
 Expected outcome:
-- **Connecting:** the agent finds no Fulcra tools (after `tool_search`), tells the user how to add and sign in to the Fulcra MCP server, and doesn't add it itself or ask for a password. After the user's `hermes fulcra connect` and sign-in, a new chat has the `mcp__fulcra__*` tools and no panel-only tools.
+- **Connecting:** the agent finds no Fulcra tools (after `tool_search`), tells the user how to add and sign in to the Fulcra MCP server, and doesn't add it itself or ask for a password. After the user's commands, a new chat has the `mcp__fulcra__*` tools.
 - **Invitation:** one prepared channel and ready-to-share text with the user's Fulcra ID and the handshake topic; reported as prepared, not sent or connected; nothing shared yet.
 - **What's new:** turned on only after the user agrees, with the agreed agent name and interval; the settings read back (`hermes fulcra status`) match.
 - **Connection:** on the check after the peer accepts, the agent shares only its channel, only with the peer's account, and reports “connected” only after both shares exist. It reports the introduction.

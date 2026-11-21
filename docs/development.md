@@ -8,19 +8,19 @@ The plugin runs inside Hermes on the standard library alone and declares no depe
 
 Against a fulcra-context-mcp checkout:
 
-    scripts/check-tools.py /path/to/fulcra-context-mcp    # skills call only offered tools; APP_ONLY matches the server
+    scripts/check-tools.py /path/to/fulcra-context-mcp    # skills call only offered, non-panel tools
     scripts/check-upstream.py /path/to/claude-plugin      # skills vs the Claude plugin they're adapted from
 
 ## How it fits together
 
-Fulcra's tools come from the hosted Fulcra MCP server. `/fulcra connect` adds it to the profile's `mcp_servers` as `fulcra` with `auth: oauth`; Hermes registers an OAuth client, signs in, stores and refreshes the tokens, and offers the tools to the model as `mcp__fulcra__<tool>`. The plugin registers no tools of its own: a plugin toolset named `fulcra` would hide the server's.
+Fulcra's tools come from the hosted Fulcra MCP server. The user adds it with `hermes mcp add fulcra --url … --auth oauth` (the plugin never writes Hermes's config; `/fulcra connect` prints the commands still needed); Hermes registers an OAuth client, signs in, stores and refreshes the tokens, and offers the tools to the model as `mcp__fulcra__<tool>`. The plugin registers no tools of its own: a plugin toolset named `fulcra` would hide the server's.
 
-- `mcp_api.py`: the server entry and calls to the server's tools through `ctx.call_mcp`, Hermes's own MCP client. Hermes allows those only for servers in `plugins.entries.fulcra.mcp_allowlist`, which `connect` sets along with the server entry, when the user asks.
+- `mcp_api.py`: reads whether the server is added and granted, prints the setup commands, and calls the server's tools through `ctx.call_mcp`, Hermes's own MCP client. Hermes allows those calls only for servers the user lists in `plugins.entries.fulcra.mcp_allowlist`.
 - `whats_new.py`: the what's-new hooks. A due check runs in a background thread after a reply and its findings go into the next turn.
 - `messages.py`: which shares are contact channels and which records are messages for this agent (validated against `skills/connect-our-agents/references/channel-fields.json`).
-- `commands.py`: `/fulcra` and `hermes fulcra` (`connect`, `status`, `setup`). In a terminal, `connect` offers to run `hermes mcp login fulcra`; that is the plugin's only subprocess, and it runs only if the user says yes.
-- `dashboard/plugin_api.py`: backend routes for the Desktop page (`/status`, `/connect`, `/ping`), through the plugin's own `ctx`. Hermes connects MCP servers when a session starts, so Fulcra answers once any chat has started in that backend. A call to a server that isn't connected counts against Hermes's circuit breaker for it, so the page pings only once `mcp.servers.status` says connected.
-- `desktop/plugin.js`: the **Agents I Know** page and the `::fulcra-agents-i-know` transcript directive. Sign-in uses Hermes's own gateway RPC (`mcp.servers.oauth.start`/`poll`) through `host.request`.
+- `commands.py`: `/fulcra` and `hermes fulcra` (`connect` prints the setup commands still needed, `status`, `setup`). No subprocesses and no config writes.
+- `dashboard/plugin_api.py`: backend routes for the Desktop page (`/status` with the commands still needed, `/ping`), through the plugin's own `ctx`. Hermes connects MCP servers when a session starts, so Fulcra answers once any chat has started in that backend. A call to a server that isn't connected counts against Hermes's circuit breaker for it, so the page pings only on request.
+- `desktop/plugin.js`: the **Agents I Know** page (status, the commands to copy, a ping) and the `::fulcra-agents-i-know` transcript directive. It doesn't sign in or change config; Desktop's own **Capabilities > MCP servers** does that.
 - `skills/`: adapted from the Claude Fulcra plugin; `provenance.json` records each source.
 
 Registration has no network access, writes or background work.
@@ -29,7 +29,7 @@ A Hermes that is already running when the server is added connects it on its own
 
 ## Live checks
 
-`scripts/desktop_backend_check.py` drives a `hermes serve` backend the way the Desktop page does (status, connect, sign-in through the gateway RPC, ping before and after a session).
+`scripts/desktop_backend_check.py` drives a `hermes serve` backend the way the Desktop page does (status, then a ping before and after a session).
 
 ## Acceptance
 

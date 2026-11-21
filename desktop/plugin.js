@@ -1,5 +1,7 @@
-// Fulcra for Hermes Desktop: the Agents I Know page (connection and a ping for now; contacts come later).
+// Fulcra for Hermes Desktop: the Agents I Know page (connection status and a ping for now; contacts come later).
 // Plain ESM loaded uncompiled by Desktop: no JSX, and only @hermes/plugin-sdk and react imports.
+// The page never changes Hermes's config or signs in: it shows the Hermes commands still needed and points to
+// Desktop's own Capabilities > MCP servers.
 import {
   Button,
   host,
@@ -12,19 +14,11 @@ import { useEffect, useState } from 'react'
 import { jsx, jsxs } from 'react/jsx-runtime'
 
 const PATH = '/fulcra'
-const POLL_MS = 2000
-const SIGN_IN_MS = 5 * 60 * 1000
 
 const message = error => String((error && error.message) || error || 'Unknown error')
 const muted = children => jsx('div', { className: 'text-(--ui-text-tertiary)', children })
 
 // StatusDot tones: good | muted | warn | bad.
-// The Fulcra server's row from Hermes's own MCP status (cached; never connects or signs in).
-async function serverStatus(name) {
-  const result = await host.request('mcp.servers.status', {})
-  return ((result && result.servers) || []).find(server => server.name === name) || null
-}
-
 function Line({ tone, children }) {
   return jsxs('div', {
     className: 'flex items-start gap-2',
@@ -32,18 +26,47 @@ function Line({ tone, children }) {
   })
 }
 
+function Command({ ctx, purpose, command }) {
+  const [copied, setCopied] = useState(false)
+  return jsxs('div', {
+    className: 'flex flex-col gap-1',
+    children: [
+      jsx('div', { children: purpose }),
+      jsxs('div', {
+        className: 'flex items-center gap-2',
+        children: [
+          jsx('code', { className: 'select-all rounded bg-(--ui-bg-quaternary) px-2 py-1 font-mono text-xs', children: command }),
+          jsx(Button, {
+            variant: 'ghost',
+            onClick: async () => setCopied(await ctx.os.writeClipboard(command)),
+            children: copied ? 'Copied' : 'Copy'
+          })
+        ]
+      })
+    ]
+  })
+}
+
+const PING = {
+  connected: ['good', s => `Fulcra answered in ${s.seconds} s.`],
+  not_configured: ['warn', () => 'Fulcra isn\u2019t added to Hermes.'],
+  not_allowed: ['warn', () => 'The Fulcra plugin may not use the fulcra server yet.'],
+  not_connected: [
+    'warn',
+    () =>
+      'Hermes hasn\u2019t connected to Fulcra here yet. If you haven\u2019t signed in, sign in under Capabilities > MCP servers; otherwise start a chat, then try again.'
+  ],
+  error: ['bad', () => 'Fulcra answered with an error. You may need to sign in again under Capabilities > MCP servers.']
+}
+
 function AgentsIKnowPage({ ctx }) {
-  const [info, setInfo] = useState(null) // {server, url, default_url} from the plugin's backend
-  const [runtime, setRuntime] = useState(null) // Hermes's MCP status row for the server
-  const [step, setStep] = useState('idle') // idle | confirm | adding | signing-in | signed-in
+  const [info, setInfo] = useState(null) // {server, url, allowed, commands} from the plugin's backend
   const [ping, setPing] = useState(null)
   const [error, setError] = useState(null)
 
   const refresh = async () => {
     try {
-      const next = await ctx.rest('/status')
-      setInfo(next)
-      setRuntime(next.url ? await serverStatus(next.server).catch(() => null) : null)
+      setInfo(await ctx.rest('/status'))
       setError(null)
     } catch (e) {
       setError(message(e))
@@ -53,51 +76,6 @@ function AgentsIKnowPage({ ctx }) {
   useEffect(() => {
     refresh()
   }, [])
-
-  const add = async () => {
-    setStep('adding')
-    try {
-      await ctx.rest('/connect', { method: 'POST', body: {} })
-      await refresh()
-      setStep('idle')
-    } catch (e) {
-      setError(message(e))
-      setStep('idle')
-    }
-  }
-
-  // Hermes's own MCP sign-in, as in Capabilities > MCP servers: the browser opens, the page polls.
-  const signIn = async () => {
-    setError(null)
-    setStep('signing-in')
-    try {
-      const flow = await host.request('mcp.servers.oauth.start', { name: info.server })
-      await ctx.os.openExternal(flow.auth_url)
-      const deadline = Date.now() + SIGN_IN_MS
-      const stop = ctx.setInterval(async () => {
-        try {
-          const poll = await host.request('mcp.servers.oauth.poll', { name: info.server, session_id: flow.session_id })
-          if (poll.status === 'pending' && Date.now() < deadline) return
-          stop()
-          if (poll.status === 'approved') {
-            setStep('signed-in')
-            refresh()
-          } else {
-            setStep('idle')
-            setError(poll.error || poll.message || 'Sign-in did not finish.')
-            host.request('mcp.servers.oauth.cancel', { name: info.server, session_id: flow.session_id }).catch(() => {})
-          }
-        } catch (e) {
-          stop()
-          setStep('idle')
-          setError(message(e))
-        }
-      }, POLL_MS)
-    } catch (e) {
-      setStep('idle')
-      setError(message(e))
-    }
-  }
 
   const runPing = async () => {
     setPing({ state: 'busy' })
@@ -115,75 +93,37 @@ function AgentsIKnowPage({ ctx }) {
 
   if (!info && !error) children.push(muted('Loading\u2026'))
 
-  const ready = info && info.url && info.allowed
-  if (info && !ready) {
+  if (info) {
+    const ready = info.url && info.allowed
     children.push(
       jsx(Line, {
-        tone: 'warn',
+        tone: ready ? 'good' : 'warn',
         children: [
           jsx('div', {
-            children: info.url
-              ? 'Fulcra is added to Hermes, but this page and what\u2019s new may not use it yet.'
-              : 'Fulcra isn\u2019t added to Hermes yet.'
+            children: !info.url
+              ? 'Fulcra isn\u2019t added to Hermes yet.'
+              : info.allowed
+                ? 'Fulcra is added to Hermes.'
+                : 'Fulcra is added, but this page and what\u2019s new may not use it yet.'
           }),
-          step === 'confirm'
-            ? muted(
-                (info.url
-                  ? ''
-                  : `Hermes will add the Fulcra MCP server (${info.default_url}) as \u201c${info.server}\u201d and offer its tools in new chats. `) +
-                  'The Fulcra plugin may then call it too, for this page and what\u2019s new. You can remove the server any time under Capabilities > MCP servers.'
-              )
-            : null
+          info.url ? muted(info.url) : null
         ]
-      }),
-      step === 'confirm'
-        ? jsxs('div', {
-            className: 'flex gap-2',
-            children: [
-              jsx(Button, { onClick: add, children: info.url ? 'Allow' : 'Add Fulcra' }),
-              jsx(Button, { variant: 'outline', onClick: () => setStep('idle'), children: 'Cancel' })
-            ]
-          })
-        : jsx('div', {
-            children: jsx(Button, {
-              onClick: () => setStep('confirm'),
-              disabled: step === 'adding',
-              children: step === 'adding' ? 'Adding\u2026' : info.url ? 'Allow the Fulcra plugin\u2026' : 'Connect Fulcra\u2026'
-            })
-          })
+      })
     )
-  }
-
-  if (ready) {
-    const live = runtime && runtime.connected
-    const needsAuth = runtime && runtime.needs_auth
+    if (info.commands.length) {
+      children.push(
+        muted('Run in a terminal on the machine running Hermes (or ask Hermes to run them for you):'),
+        ...info.commands.map(c => jsx(Command, { ctx, purpose: c.purpose, command: c.command })),
+        muted(
+          'You can also add the server and sign in under Capabilities > MCP servers. After signing in, start a new chat; a running Hermes may need a restart to pick up the sign-in.'
+        )
+      )
+    }
     children.push(
-      jsx(Line, {
-        tone: live ? 'good' : needsAuth ? 'warn' : 'muted',
-        children: [
-          jsx('div', {
-            children: live
-              ? `Connected to Fulcra (${runtime.tools} tools).`
-              : needsAuth
-                ? 'Fulcra is added; sign in to use it.'
-                : step === 'signed-in'
-                  ? 'Signed in. Start a new chat to use Fulcra.'
-                  : 'Fulcra is added. Hermes connects to it when a chat starts.'
-          }),
-          muted(info.url)
-        ]
-      }),
       jsxs('div', {
         className: 'flex gap-2',
         children: [
-          !live &&
-            jsx(Button, {
-              onClick: signIn,
-              disabled: step === 'signing-in',
-              children: step === 'signing-in' ? 'Finish signing in in your browser\u2026' : 'Sign in to Fulcra'
-            }),
-          // Only once Hermes reports the server connected: a call to an unconnected server counts against it.
-          live &&
+          ready &&
             jsx(Button, {
               variant: 'outline',
               onClick: runPing,
@@ -192,25 +132,13 @@ function AgentsIKnowPage({ ctx }) {
             }),
           jsx(Button, { variant: 'ghost', onClick: refresh, children: 'Refresh' })
         ]
-      }),
-      !live && muted('If Hermes runs on another computer, sign in from Capabilities > MCP servers instead.')
+      })
     )
   }
 
   if (ping && ping.state !== 'busy') {
-    const text = {
-      connected: `Fulcra answered in ${ping.seconds} s.`,
-      not_configured: 'Fulcra isn\u2019t added to Hermes.',
-      not_connected: 'Hermes hasn\u2019t connected to Fulcra in this window yet: start a chat, then try again.',
-      not_allowed: 'The Fulcra plugin may not use the fulcra server yet.',
-      error: 'Fulcra answered with an error. If you aren\u2019t signed in, sign in and try again.'
-    }[ping.state] || 'Unexpected answer.'
-    children.push(
-      jsx(Line, {
-        tone: ping.state === 'connected' ? 'good' : ping.state === 'error' ? 'bad' : 'warn',
-        children: [jsx('div', { children: text }), ping.detail ? muted(ping.detail) : null]
-      })
-    )
+    const [tone, text] = PING[ping.state] || PING.error
+    children.push(jsx(Line, { tone, children: [jsx('div', { children: text(ping) }), ping.detail ? muted(ping.detail) : null] }))
   }
 
   if (error) children.push(jsx(Line, { tone: 'bad', children: jsx('div', { children: error }) }))

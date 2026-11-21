@@ -10,21 +10,17 @@ from plugin import ROOT, Context, Fulcra, HermesConfig, load
 
 
 class NativeTests(unittest.TestCase):
-    def test_runtime_has_no_heavy_imports_and_starts_a_process_only_to_sign_in(self):
+    def test_runtime_has_no_heavy_imports_processes_or_config_writes(self):
         banned = {'pandas', 'numpy', 'pyarrow', 'dateparser', 'click', 'requests', 'httpx', 'urllib', 'jsonschema'}
         for path in [*ROOT.glob('*.py'), *ROOT.glob('dashboard/*.py')]:
             tree = ast.parse(path.read_text())
             for node in ast.walk(tree):
                 names = ({n.name.split('.')[0] for n in node.names} if isinstance(node, ast.Import) else
                          {(node.module or '').split('.')[0]} if isinstance(node, ast.ImportFrom) else set())
-                self.assertFalse(names & banned, path)
-                if 'subprocess' in names:
-                    self.assertEqual(path.name, 'commands.py')
+                self.assertFalse(names & (banned | {'subprocess'}), path)
                 if isinstance(node, ast.Call):
                     self.assertNotIn(ast.unparse(node.func), {'os.system', 'os.popen', 'eval', 'exec', '__import__'}, path)
-        source = (ROOT / 'commands.py').read_text()
-        self.assertEqual(source.count('subprocess.run('), 1)
-        self.assertIn("if answer not in ('', 'y', 'yes')", source)
+            self.assertNotIn('save_config', path.read_text(), path)
 
     def test_no_credentials_or_fulcra_config(self):
         for path in [*ROOT.glob('*.py'), *ROOT.glob('dashboard/*.py'), *ROOT.glob('desktop/*.js')]:
@@ -47,20 +43,20 @@ class DashboardTests(unittest.TestCase):
     def run_async(self, coroutine):
         return asyncio.run(coroutine)
 
-    def test_status_connect_and_ping(self):
-        self.assertEqual(self.run_async(self.api.status())['url'], None)
+    def test_status_and_ping(self):
+        status = self.run_async(self.api.status())
+        self.assertEqual((status['url'], status['allowed'], len(status['commands'])), (None, False, 2))
         self.assertEqual(self.run_async(self.api.ping()), {'state': 'not_configured'})
-        self.run_async(self.api.connect({}))
-        self.assertEqual(self.config.data['mcp_servers']['fulcra']['auth'], 'oauth')
-        self.assertTrue(self.run_async(self.api.status())['allowed'])
+        self.config.data = {'mcp_servers': {'fulcra': {'url': 'https://mcp.fulcradynamics.com/mcp'}},
+                            'plugins': {'entries': {'fulcra': {'mcp_allowlist': ['fulcra']}}}}
+        status = self.run_async(self.api.status())
+        self.assertEqual((status['allowed'], status['commands']), (True, []))
         self.assertEqual(self.run_async(self.api.ping())['state'], 'connected')
         self.ctx.fulcra = None
         self.assertEqual(self.run_async(self.api.ping())['state'], 'not_connected')
-
-    def test_connect_requires_https(self):
-        from fastapi import HTTPException
-        with self.assertRaises(HTTPException):
-            self.run_async(self.api.connect({'url': 'http://example.com/mcp'}))
+        self.ctx.allowed = False
+        self.assertEqual(self.run_async(self.api.ping())['state'], 'not_allowed')
+        self.assertFalse(hasattr(self.api, 'connect'))
 
     def test_unloaded_plugin_is_a_clear_error(self):
         from fastapi import HTTPException

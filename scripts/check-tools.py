@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
-"""Check the plugin against the tools the Fulcra MCP server offers.
+"""Check every tool the plugin's skills call exists on the Fulcra MCP server.
 
 Lists the tools a fulcra-context-mcp checkout offers on /mcp (the endpoint the
-plugin adds to Hermes) and checks that
-- every `tool_name(` call written in the skills is offered, and
-- mcp_api.APP_ONLY, which the plugin's server entry excludes, is exactly the
-  tools only MCP App panels use or that open a panel.
+user adds to Hermes) and compares them with every `tool_name(` call written in
+the skills. Also refuses calls to tools only MCP App panels use, which Hermes
+can't display.
 
     scripts/check-tools.py <fulcra-context-mcp checkout>
 
-Exits 1 on any difference, except tools in OPTIONAL, which the skills only use
+Exits 1 on any problem, except tools in OPTIONAL, which the skills only use
 when the server offers them.
 """
 
@@ -80,12 +79,10 @@ def main() -> int:
         else:
             print(f"MISSING: {name} in {files}")
             missing += 1
-    sys.path.insert(0, str(ROOT))
-    from mcp_api import APP_ONLY
-    app_only = sorted(name for name, only in tools.items() if only)
-    if sorted(APP_ONLY) != app_only:
-        print(f"mcp_api.APP_ONLY should be {app_only}")
-        missing += 1
+    for name, where in sorted(called().items()):
+        if tools.get(name) and name not in NOT_CALLED:
+            print(f"PANEL-ONLY: {name} in {', '.join(sorted(set(where)))}")
+            missing += 1
     print(f"/mcp: {len(tools)} tools offered; {missing} problems")
     return 1 if missing else 0
 

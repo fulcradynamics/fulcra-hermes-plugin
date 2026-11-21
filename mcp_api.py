@@ -1,8 +1,9 @@
 """Fulcra through the hosted Fulcra MCP server, which Hermes connects and signs in to.
 
-The plugin holds no credentials: its hooks and Desktop backend call the server's tools with ctx.call_mcp,
-Hermes's own MCP client. Hermes allows that only for servers in plugins.entries.<plugin>.mcp_allowlist,
-which connect() sets when the user asks to connect Fulcra.
+The plugin holds no credentials and never changes Hermes's config: the user adds the server and signs in
+with Hermes's own commands (setup_commands), and grants the plugin the server in
+plugins.entries.<plugin>.mcp_allowlist. Its hooks and Desktop backend then call the server's tools with
+ctx.call_mcp, Hermes's own MCP client.
 """
 import json
 import time
@@ -11,13 +12,6 @@ from datetime import timedelta
 SERVER = 'fulcra'  # The plugin registers no toolset named fulcra; one would hide the server's tools.
 PREFIX = f'mcp__{SERVER}__'
 DEFAULT_URL = 'https://mcp.fulcradynamics.com/mcp'
-# Tools only MCP App panels use (visibility ["app"]) or that open one. Hermes shows no panels, but would
-# offer these to the model; the server already hides open_agent_contacts* from hosts without MCP Apps.
-# scripts/check-tools.py compares this list with the server's.
-APP_ONLY = ['end_agent_contact', 'get_contact_preferences', 'get_fulcra_settings', 'get_message_check_status',
-            'open_file_manager', 'prepare_agent_invitation', 'prepare_standing_agent_invitation',
-            'search_agent_contacts', 'send_agent_contact_message', 'set_contact_identifier', 'set_contact_preferences',
-            'set_contact_status', 'start_file_upload', 'update_fulcra_settings', 'upload_file_chunk']
 TRUNCATED = '(showing the first'  # get_records caps long ranges and says so.
 
 
@@ -100,10 +94,6 @@ def probe(ctx):
     return {'state': state, 'detail': error[:200], **result}
 
 
-def server_entry(url=DEFAULT_URL):
-    return {'url': url, 'auth': 'oauth', 'tools': {'exclude': APP_ONLY}}
-
-
 def configured():
     """The URL of this profile's Fulcra MCP server, or None."""
     from hermes_cli.config import load_config_readonly
@@ -117,16 +107,13 @@ def allowed(plugin_id):
     return SERVER in (entry.get('mcp_allowlist') or [])
 
 
-def connect(url, plugin_id):
-    """Add the Fulcra MCP server (Hermes signs in to it with OAuth) and let this plugin call it.
-
-    Only on the user's request: /fulcra connect or the Desktop page's Connect. Other servers, grants and
-    settings are kept.
-    """
-    from hermes_cli.config import load_config, save_config
-    config = load_config()
-    config.setdefault('mcp_servers', {})[SERVER] = server_entry(url)
-    entry = config.setdefault('plugins', {}).setdefault('entries', {}).setdefault(plugin_id, {})
-    allowlist = [name for name in entry.get('mcp_allowlist') or [] if name != SERVER]
-    entry['mcp_allowlist'] = allowlist + [SERVER]
-    save_config(config)
+def setup_commands(plugin_id, url=DEFAULT_URL):
+    """The Hermes commands still needed, given this profile's config: [(purpose, command)]."""
+    commands = []
+    if not configured():
+        commands.append(('Add the Fulcra MCP server and sign in (opens your browser)',
+                         f'hermes mcp add {SERVER} --url {url} --auth oauth --connect-timeout 300'))
+    if not allowed(plugin_id):
+        commands.append(("Let the Fulcra plugin use it for what's new and the Desktop page",
+                         f"hermes config set plugins.entries.{plugin_id}.mcp_allowlist '[\"{SERVER}\"]'"))
+    return commands

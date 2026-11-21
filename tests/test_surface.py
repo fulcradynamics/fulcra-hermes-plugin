@@ -33,13 +33,14 @@ class SurfaceTests(unittest.TestCase):
     def test_skills_name_only_offered_tools_and_real_skills(self):
         ctx = Context()
         load().register(ctx)
-        excluded = set(load().mcp_api.APP_ONLY)
+        panel_only = {'open_file_manager', 'send_agent_contact_message', 'end_agent_contact', 'set_contact_status',
+                      'search_agent_contacts', 'start_file_upload', 'upload_file_chunk'}
         for path in (ROOT / 'skills').rglob('*.md'):
             text = path.read_text()
             with self.subTest(path=path.relative_to(ROOT)):
                 called = set(re.findall(r'`([a-z][a-z0-9]*(?:_[a-z0-9]+)+)\(', text))
                 called |= set(re.findall(r'mcp__fulcra__([a-z_]+)', text))
-                self.assertFalse(called & excluded, 'skills call tools the server entry excludes')
+                self.assertFalse(called & panel_only, 'skills call tools only MCP App panels use')
                 self.assertNotRegex(text, r'\bfulcra_(?!userid|data_types)[a-z_]+\(', 'old plugin tool names')
                 self.assertLessEqual(set(re.findall(r'`fulcra:([a-z-]+)`', text)), set(ctx.skills))
                 for link in re.findall(r'\]\(((?!https?:)[^)#]+)', text):
