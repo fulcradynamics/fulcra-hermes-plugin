@@ -8,7 +8,7 @@ import time
 from fastapi import APIRouter
 
 router = APIRouter()
-TOOL = 'mcp__fulcra_context__list_shares'
+TOOL = 'mcp__fulcra__list_shares'
 
 
 def _outcome(fn):
@@ -29,7 +29,7 @@ def _probe():
     return {
         'pid': os.getpid(),
         'process': os.path.basename(sys.argv[0]),
-        'fulcra_context_tools': len([n for n in registry.get_all_tool_names() if n.startswith('mcp__fulcra_context__')]),
+        'fulcra_context_tools': len([n for n in registry.get_all_tool_names() if n.startswith('mcp__fulcra__')]),
         'ctx_found': len(ctxs),
         'ctx_dispatch': _outcome(lambda: ctxs[0].dispatch_tool(TOOL, {'direction': 'incoming'})) if ctxs else None,
     }

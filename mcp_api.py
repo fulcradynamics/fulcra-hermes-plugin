@@ -5,8 +5,8 @@ tools the model uses.
 """
 import json
 
-SERVER = 'fulcra-context'  # Not 'fulcra': Hermes aliases a server's toolset by its name, which would hide its tools.
-TOOL_PREFIX = 'mcp__fulcra_context__'
+SERVER = 'fulcra'
+TOOL_PREFIX = 'mcp__fulcra__'
 DEFAULT_URL = 'https://mcp.fulcradynamics.com/mcp'
 
 
