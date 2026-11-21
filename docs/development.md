@@ -15,15 +15,17 @@ Against a fulcra-context-mcp checkout:
 
 Fulcra's tools come from the hosted Fulcra MCP server. `/fulcra connect` adds it to the profile's `mcp_servers` as `fulcra` with `auth: oauth`; Hermes registers an OAuth client, signs in, stores and refreshes the tokens, and offers the tools to the model as `mcp__fulcra__<tool>`. The plugin registers no tools of its own: a plugin toolset named `fulcra` would hide the server's.
 
-- `mcp_api.py`: the server entry, and calls to the server's tools through `ctx.dispatch_tool`.
+- `mcp_api.py`: the server entry and calls to the server's tools through `ctx.call_mcp`, Hermes's own MCP client. Hermes allows those only for servers in `plugins.entries.fulcra.mcp_allowlist`, which `connect` sets along with the server entry, when the user asks.
 - `whats_new.py`: the what's-new hooks. A due check runs in a background thread after a reply and its findings go into the next turn.
 - `messages.py`: which shares are contact channels and which records are messages for this agent (validated against `skills/connect-our-agents/references/channel-fields.json`).
 - `commands.py`: `/fulcra` and `hermes fulcra` (`connect`, `status`, `setup`). In a terminal, `connect` offers to run `hermes mcp login fulcra`; that is the plugin's only subprocess, and it runs only if the user says yes.
-- `dashboard/plugin_api.py`: backend routes for the Desktop page (`/status`, `/connect`, `/ping`), through the plugin's own `ctx`. Hermes connects MCP servers when a session starts, so tools answer once any chat has started in that backend.
+- `dashboard/plugin_api.py`: backend routes for the Desktop page (`/status`, `/connect`, `/ping`), through the plugin's own `ctx`. Hermes connects MCP servers when a session starts, so Fulcra answers once any chat has started in that backend. A call to a server that isn't connected counts against Hermes's circuit breaker for it, so the page pings only once `mcp.servers.status` says connected.
 - `desktop/plugin.js`: the **Agents I Know** page and the `::fulcra-agents-i-know` transcript directive. Sign-in uses Hermes's own gateway RPC (`mcp.servers.oauth.start`/`poll`) through `host.request`.
 - `skills/`: adapted from the Claude Fulcra plugin; `provenance.json` records each source.
 
 Registration has no network access, writes or background work.
+
+A Hermes that is already running when the server is added connects it on its own: a gateway re-reads `config.yaml` within about a minute, and a server added before sign-in waits for its next retry (30 s, doubling up to 10 minutes). `/reload-mcp` in a chat connects it at once.
 
 ## Live checks
 

@@ -11,7 +11,7 @@ class SurfaceTests(unittest.TestCase):
     def test_registration_matches_the_manifest_without_side_effects(self):
         plugin, ctx = load(), Context()
         ctx.state.set = Mock()
-        ctx.dispatch_tool = Mock()
+        ctx.call_mcp = Mock()
         plugin.register(ctx)
         manifest = (ROOT / 'plugin.yaml').read_text()
         block = lambda key: re.search(rf'^{key}:\n((?:  - .*\n)+)', manifest, re.M)
@@ -23,7 +23,7 @@ class SurfaceTests(unittest.TestCase):
         self.assertEqual(set(ctx.commands), {'fulcra', 'cli fulcra'})
         self.assertEqual(ctx.config, {})
         ctx.state.set.assert_not_called()
-        ctx.dispatch_tool.assert_not_called()
+        ctx.call_mcp.assert_not_called()
         self.assertEqual(sorted(ctx.skills), sorted(p.parent.name for p in (ROOT / 'skills').glob('*/SKILL.md')))
 
     def test_settings_match_the_manifest(self):

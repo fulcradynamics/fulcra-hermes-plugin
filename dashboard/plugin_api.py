@@ -1,6 +1,6 @@
 """Backend for the Fulcra page in Hermes Desktop.
 
-Reaches Fulcra only through the plugin's ctx.dispatch_tool, on the MCP connection and sign-in Hermes made;
+Reaches Fulcra only through the plugin's ctx.call_mcp, on the MCP connection and sign-in Hermes made;
 never handles credentials. Sign-in itself goes through Hermes's own gateway RPC from desktop/plugin.js.
 """
 import asyncio
@@ -22,17 +22,19 @@ def _plugin():
 @router.get('/status')
 async def status():
     mcp_api = _plugin()
-    return {'server': mcp_api.SERVER, 'url': mcp_api.configured(), 'default_url': mcp_api.DEFAULT_URL}
+    ctx = mcp_api._FULCRA_CTX
+    return {'server': mcp_api.SERVER, 'url': mcp_api.configured(), 'allowed': mcp_api.allowed(ctx.plugin_id),
+            'default_url': mcp_api.DEFAULT_URL}
 
 
 @router.post('/connect')
 async def connect(body: dict = Body(default={})):
-    """Add the Fulcra MCP server; the page asks the user first."""
+    """Add the Fulcra MCP server and let the plugin use it; the page asks the user first."""
     mcp_api = _plugin()
     url = body.get('url') or mcp_api.DEFAULT_URL
     if not isinstance(url, str) or not url.startswith('https://'):
         raise HTTPException(400, 'The server URL must use https.')
-    await asyncio.to_thread(mcp_api.connect, url)
+    await asyncio.to_thread(mcp_api.connect, url, mcp_api._FULCRA_CTX.plugin_id)
     return {'server': mcp_api.SERVER, 'url': url}
 
 

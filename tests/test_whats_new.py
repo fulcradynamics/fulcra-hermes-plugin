@@ -100,6 +100,28 @@ class WhatsNewTests(unittest.TestCase):
         previews = [json.loads(line)['preview'] for line in self.turn()['context'].splitlines()[1:]]
         self.assertEqual(sorted(previews), [f'm{n}' for n in range(7)])
 
+    def test_reads_every_message_when_hermes_truncates_a_result(self):
+        self.setup()
+        self.fulcra.share_channel()
+        self.turn()
+        self.ctx.CAP = 900
+        self.fulcra.MAX_RECORDS = 100
+        for n in range(6):
+            row = self.fulcra.post(CHANNEL, f'00000000-0000-4000-8000-00000000002{n}', sender='sura',
+                                   kind='message', body=f'm{n} ' + 'x' * 200)
+            row['start_time'] = (datetime.now(timezone.utc) - timedelta(seconds=50 - 8 * n)).isoformat()
+        self.due()
+        self.turn()
+        previews = [json.loads(line)['preview'][:2] for line in self.turn()['context'].splitlines()[1:]]
+        self.assertEqual(sorted(previews), [f'm{n}' for n in range(6)])
+
+    def test_without_the_grant_checks_fail_quietly(self):
+        self.ctx.allowed = False
+        self.setup()
+        with self.assertLogs(self.whats_new.LOG, 'WARNING') as logs:
+            self.turn()
+        self.assertIn('PermissionError', ''.join(logs.output))
+
     def test_own_successful_writes_are_not_reported(self):
         self.setup()
         self.turn()

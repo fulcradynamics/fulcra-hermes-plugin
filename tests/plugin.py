@@ -105,10 +105,14 @@ class Fulcra:
 
 
 class Context:
-    def __init__(self, fulcra=None):
+    plugin_id = 'fulcra'
+    CAP = 65536  # call_mcp truncates longer results
+
+    def __init__(self, fulcra=None, allowed=True):
         self.config, self.state = {}, State()
         self.tools, self.hooks, self.commands, self.skills = {}, {}, {}, {}
         self.fulcra = fulcra  # None: Hermes hasn't connected the Fulcra MCP server here
+        self.allowed = allowed  # whether fulcra is in this plugin's mcp_allowlist
 
     def get_config(self, key, default=None):
         return self.config.get(key, default)
@@ -131,8 +135,15 @@ class Context:
     def register_skill(self, name, path):
         self.skills[name] = path
 
-    def dispatch_tool(self, name, args):
-        prefix = 'mcp__fulcra__'
-        if self.fulcra is None or not name.startswith(prefix):
-            return json.dumps({'error': f'Unknown tool: {name}'})
-        return json.dumps(self.fulcra.answer(name[len(prefix):], args))
+    def call_mcp(self, server, tool, arguments=None, timeout=30):
+        """Like Hermes's ctx.call_mcp: allowlisted servers only, an {ok, result|error} envelope, a size cap."""
+        if server != 'fulcra' or not self.allowed:
+            raise PermissionError(f'Plugin {self.plugin_id!r} is not allowed to call MCP server {server!r}.')
+        if self.fulcra is None:
+            return {'ok': False, 'error': f"MCP server '{server}' is not connected"}
+        out = self.fulcra.answer(tool, dict(arguments or {}))
+        if 'error' in out:
+            return {'ok': False, 'error': out['error']}
+        if len(out['result']) > self.CAP:
+            return {'ok': True, 'result': out['result'][:self.CAP] + '… [truncated]', 'truncated': True}
+        return {'ok': True, 'result': out['result']}

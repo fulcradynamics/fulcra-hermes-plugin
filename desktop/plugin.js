@@ -115,14 +115,24 @@ function AgentsIKnowPage({ ctx }) {
 
   if (!info && !error) children.push(muted('Loading\u2026'))
 
-  if (info && !info.url) {
+  const ready = info && info.url && info.allowed
+  if (info && !ready) {
     children.push(
       jsx(Line, {
         tone: 'warn',
         children: [
-          jsx('div', { children: 'Fulcra isn\u2019t added to Hermes yet.' }),
+          jsx('div', {
+            children: info.url
+              ? 'Fulcra is added to Hermes, but this page and what\u2019s new may not use it yet.'
+              : 'Fulcra isn\u2019t added to Hermes yet.'
+          }),
           step === 'confirm'
-            ? muted(`Hermes will add the Fulcra MCP server (${info.default_url}) as \u201c${info.server}\u201d and offer its tools in new chats. You can remove it any time under Capabilities > MCP servers.`)
+            ? muted(
+                (info.url
+                  ? ''
+                  : `Hermes will add the Fulcra MCP server (${info.default_url}) as \u201c${info.server}\u201d and offer its tools in new chats. `) +
+                  'The Fulcra plugin may then call it too, for this page and what\u2019s new. You can remove the server any time under Capabilities > MCP servers.'
+              )
             : null
         ]
       }),
@@ -130,7 +140,7 @@ function AgentsIKnowPage({ ctx }) {
         ? jsxs('div', {
             className: 'flex gap-2',
             children: [
-              jsx(Button, { onClick: add, children: 'Add Fulcra' }),
+              jsx(Button, { onClick: add, children: info.url ? 'Allow' : 'Add Fulcra' }),
               jsx(Button, { variant: 'outline', onClick: () => setStep('idle'), children: 'Cancel' })
             ]
           })
@@ -138,13 +148,13 @@ function AgentsIKnowPage({ ctx }) {
             children: jsx(Button, {
               onClick: () => setStep('confirm'),
               disabled: step === 'adding',
-              children: step === 'adding' ? 'Adding\u2026' : 'Connect Fulcra\u2026'
+              children: step === 'adding' ? 'Adding\u2026' : info.url ? 'Allow the Fulcra plugin\u2026' : 'Connect Fulcra\u2026'
             })
           })
     )
   }
 
-  if (info && info.url) {
+  if (ready) {
     const live = runtime && runtime.connected
     const needsAuth = runtime && runtime.needs_auth
     children.push(
@@ -172,12 +182,15 @@ function AgentsIKnowPage({ ctx }) {
               disabled: step === 'signing-in',
               children: step === 'signing-in' ? 'Finish signing in in your browser\u2026' : 'Sign in to Fulcra'
             }),
-          jsx(Button, {
-            variant: 'outline',
-            onClick: runPing,
-            disabled: ping && ping.state === 'busy',
-            children: ping && ping.state === 'busy' ? 'Pinging\u2026' : 'Ping Fulcra'
-          })
+          // Only once Hermes reports the server connected: a call to an unconnected server counts against it.
+          live &&
+            jsx(Button, {
+              variant: 'outline',
+              onClick: runPing,
+              disabled: ping && ping.state === 'busy',
+              children: ping && ping.state === 'busy' ? 'Pinging\u2026' : 'Ping Fulcra'
+            }),
+          jsx(Button, { variant: 'ghost', onClick: refresh, children: 'Refresh' })
         ]
       }),
       !live && muted('If Hermes runs on another computer, sign in from Capabilities > MCP servers instead.')
@@ -189,6 +202,7 @@ function AgentsIKnowPage({ ctx }) {
       connected: `Fulcra answered in ${ping.seconds} s.`,
       not_configured: 'Fulcra isn\u2019t added to Hermes.',
       not_connected: 'Hermes hasn\u2019t connected to Fulcra in this window yet: start a chat, then try again.',
+      not_allowed: 'The Fulcra plugin may not use the fulcra server yet.',
       error: 'Fulcra answered with an error. If you aren\u2019t signed in, sign in and try again.'
     }[ping.state] || 'Unexpected answer.'
     children.push(

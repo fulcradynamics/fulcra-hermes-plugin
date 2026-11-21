@@ -8,9 +8,8 @@ author:
   email: support@fulcradynamics.com
   url: https://fulcradynamics.com
 homepage: https://github.com/fulcradynamics/fulcra-hermes-plugin
-repository: https://github.com/fulcradynamics/fulcra-hermes-plugin
 license: MIT
-keywords:
+tags:
   - fulcra
   - agents
   - messaging
@@ -20,8 +19,6 @@ provides_hooks:
   - pre_llm_call
   - post_llm_call
   - post_tool_call
-provides_commands:
-  - fulcra
 config_schema:
   whats-new:
     label: What's new

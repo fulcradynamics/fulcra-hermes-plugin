@@ -52,6 +52,7 @@ class DashboardTests(unittest.TestCase):
         self.assertEqual(self.run_async(self.api.ping()), {'state': 'not_configured'})
         self.run_async(self.api.connect({}))
         self.assertEqual(self.config.data['mcp_servers']['fulcra']['auth'], 'oauth')
+        self.assertTrue(self.run_async(self.api.status())['allowed'])
         self.assertEqual(self.run_async(self.api.ping())['state'], 'connected')
         self.ctx.fulcra = None
         self.assertEqual(self.run_async(self.api.ping())['state'], 'not_connected')

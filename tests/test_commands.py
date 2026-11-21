@@ -37,23 +37,35 @@ class CommandTests(unittest.TestCase):
         self.assertEqual(server['url'], 'https://mcp.fulcradynamics.com/mcp')
         self.assertEqual(server['auth'], 'oauth')
         self.assertIn('open_file_manager', server['tools']['exclude'])
+        self.assertEqual(self.config.data['plugins']['entries']['fulcra']['mcp_allowlist'], ['fulcra'])
+        self.assertIn('mcp_allowlist', text)
         self.assertIn('hermes mcp login fulcra', text)
         self.assertIn('already added', self.chat('connect'))
         self.assertIn('replacing', self.chat('connect --url https://mcp.devfulcra.com/mcp'))
         self.assertEqual(self.config.data['mcp_servers']['fulcra']['url'], 'https://mcp.devfulcra.com/mcp')
 
     def test_connect_keeps_other_servers_and_rejects_plain_http(self):
-        self.config.data = {'mcp_servers': {'linear': {'url': 'https://mcp.linear.app/mcp'}}, 'model': 'x'}
+        self.config.data = {'mcp_servers': {'linear': {'url': 'https://mcp.linear.app/mcp'}}, 'model': 'x',
+                            'plugins': {'entries': {'fulcra': {'mcp_allowlist': ['linear'], 'settings': {'a': 1}}}}}
         self.assertTrue(self.chat('connect --url http://example.com/mcp').startswith('Error:'))
         self.chat('connect')
         self.assertEqual(set(self.config.data['mcp_servers']), {'linear', 'fulcra'})
         self.assertEqual(self.config.data['model'], 'x')
+        entry = self.config.data['plugins']['entries']['fulcra']
+        self.assertEqual(entry, {'mcp_allowlist': ['linear', 'fulcra'], 'settings': {'a': 1}})
+
+    def test_a_server_the_user_added_by_hand_gets_the_grant_on_connect(self):
+        self.config.data = {'mcp_servers': {'fulcra': {'url': 'https://mcp.fulcradynamics.com/mcp', 'auth': 'oauth'}}}
+        self.ctx.allowed = False
+        self.assertIn('may not use', self.chat('status'))
+        self.assertIn('Added', self.chat('connect'))
+        self.assertEqual(self.config.data['plugins']['entries']['fulcra']['mcp_allowlist'], ['fulcra'])
 
     def test_status_in_chat_says_whether_fulcra_answers(self):
         self.chat('connect')
         self.assertIn('Fulcra answers', self.chat('status'))
         self.ctx.fulcra = None
-        self.assertIn('Not connected in this chat', self.chat('status'))
+        self.assertIn('Not connected yet', self.chat('status'))
         self.ctx.fulcra = Fulcra()
         self.ctx.fulcra.fail = 'get_user_info'
         self.assertIn('answered with an error', self.chat('status'))
@@ -79,7 +91,7 @@ class CommandTests(unittest.TestCase):
             code, out = self.cli('connect', tty=True, answer='')
         self.assertEqual(code, 0)
         self.assertEqual(run.call_args.args[0][1:], ['-m', 'hermes_cli.main', 'mcp', 'login', 'fulcra'])
-        self.assertIn('Start a new Hermes session', out)
+        self.assertIn('Signed in. New Hermes sessions can use Fulcra', out)
 
     def test_terminal_setup_and_errors(self):
         code, out = self.cli('setup', '--whats-new', 'on', '--agent-name', 'helper')

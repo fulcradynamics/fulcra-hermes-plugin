@@ -13,8 +13,8 @@ USAGE = '''/fulcra connect [--url URL]   add the Fulcra MCP server to Hermes (as
 
 
 SIGN_IN = (f'Sign in: in Hermes Desktop, open Capabilities > MCP servers and sign in to {mcp_api.SERVER}; or in a '
-           f'terminal on the machine running Hermes, run `hermes mcp login {mcp_api.SERVER}`. Then start a new chat '
-           '(for messaging apps, restart the gateway).')
+           f'terminal on the machine running Hermes, run `hermes mcp login {mcp_api.SERVER}`. Then run /reload-mcp '
+           'or start a new chat.')
 
 
 class Parser(argparse.ArgumentParser):
@@ -86,7 +86,7 @@ class Commands:
             return 0
         done = subprocess.run([sys.executable, '-m', 'hermes_cli.main', 'mcp', 'login', mcp_api.SERVER], check=False)
         if done.returncode == 0:
-            print('Start a new Hermes session to use Fulcra (for messaging apps, restart the gateway).')
+            print('Signed in. New Hermes sessions can use Fulcra; in a chat that is already open, run /reload-mcp.')
         return done.returncode
 
     def run(self, args):
@@ -104,18 +104,21 @@ class Commands:
     def answering(self):
         found = mcp_api.probe(self.ctx)
         return {'connected': f'  Fulcra answers ({found["seconds"]} s).',
-                'not_connected': '  Not connected in this chat: sign in (see /fulcra connect), then start a new chat.',
+                'not_connected': '  Not connected yet: sign in (see /fulcra connect), then run /reload-mcp or start a new chat.',
+                'not_allowed': '  The plugin may not use the fulcra server: run /fulcra connect to allow it.',
                 }.get(found['state'], f'  Fulcra answered with an error; you may need to sign in again. {found.get("detail", "")}')
 
     def connect(self, url):
         if not url.startswith('https://') and not url.startswith('http://127.0.0.1') and not url.startswith('http://localhost'):
             raise ValueError('the server URL must use https')
-        current = mcp_api.configured()
-        if current == url:
+        current, plugin_id = mcp_api.configured(), self.ctx.plugin_id
+        if current == url and mcp_api.allowed(plugin_id):
             return f'Fulcra is already added to Hermes ({mcp_api.SERVER}: {url}).'
-        mcp_api.connect(url)
-        before = f' (replacing {current})' if current else ''
-        return f'Added the Fulcra MCP server to Hermes as {mcp_api.SERVER}: {url}{before}.'
+        mcp_api.connect(url, plugin_id)
+        before = f' (replacing {current})' if current and current != url else ''
+        return (f'Added the Fulcra MCP server to Hermes as {mcp_api.SERVER}: {url}{before}, and let the Fulcra plugin '
+                f'use it for what\'s new and the Desktop page (plugins.entries.{plugin_id}.mcp_allowlist). '
+                f'Remove the server with `hermes mcp remove {mcp_api.SERVER}`.')
 
     def setup(self, args):
         changes = {k: v == 'on' if whats_new.SETTINGS[k]['type'] == 'boolean' else v for k, v in args.items()}

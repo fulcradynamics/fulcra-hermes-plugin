@@ -1,7 +1,8 @@
 """Fulcra through the hosted Fulcra MCP server, which Hermes connects and signs in to.
 
-The plugin holds no credentials: its hooks and Desktop backend call the server's tools with
-ctx.dispatch_tool, the same tools the model uses.
+The plugin holds no credentials: its hooks and Desktop backend call the server's tools with ctx.call_mcp,
+Hermes's own MCP client. Hermes allows that only for servers in plugins.entries.<plugin>.mcp_allowlist,
+which connect() sets when the user asks to connect Fulcra.
 """
 import json
 import time
@@ -24,6 +25,10 @@ class MCPError(RuntimeError):
     pass
 
 
+class Truncated(MCPError):
+    """Hermes cut a result short (call_mcp keeps about 64 KB)."""
+
+
 class MCPApi:
     """The Fulcra reads what's new needs, through the MCP server's tools."""
 
@@ -32,9 +37,11 @@ class MCPApi:
 
     def text(self, tool, **args):
         """What the tool returned: its text, or its structured content when it has no text."""
-        out = json.loads(self.ctx.dispatch_tool(PREFIX + tool, {k: v for k, v in args.items() if v is not None}))
-        if 'result' not in out:
+        out = self.ctx.call_mcp(SERVER, tool, {k: v for k, v in args.items() if v is not None}, timeout=60)
+        if not out.get('ok'):
             raise MCPError(f'{tool}: {str(out.get("error", out))[:200]}')
+        if out.get('truncated'):
+            raise Truncated(tool)
         return out['result']
 
     def call(self, tool, **args):
@@ -47,10 +54,15 @@ class MCPApi:
         return self.call('get_data_updates', start_time=start.isoformat(), end_time=end.isoformat())
 
     def records(self, data_type, start, end, owner):
-        """Every record in [start, end], halving the window while the server caps it."""
-        text = self.text('get_records', data_type=data_type, start_time=start.isoformat(),
-                         end_time=end.isoformat(), fulcra_userid=owner)
-        heading, rows = parse('get_records', text)
+        """Every record in [start, end], halving the window while the server or Hermes caps it."""
+        try:
+            text = self.text('get_records', data_type=data_type, start_time=start.isoformat(),
+                             end_time=end.isoformat(), fulcra_userid=owner)
+            heading, rows = parse('get_records', text)
+        except Truncated:
+            if end - start <= timedelta(seconds=2):
+                raise
+            heading, rows = TRUNCATED, []
         if TRUNCATED in heading and end - start > timedelta(seconds=2):
             middle = start + (end - start) / 2
             return self.records(data_type, start, middle, owner) + self.records(data_type, middle, end, owner)
@@ -68,21 +80,24 @@ def parse(tool, text):
 
 
 def probe(ctx):
-    """Whether Fulcra answers here: {'state': connected | not_connected | error, 'seconds', 'detail'?}.
+    """Whether Fulcra answers here: {'state': connected | not_connected | not_allowed | error, 'seconds', 'detail'?}.
 
     not_connected: this process hasn't connected the server yet (Hermes connects MCP servers when a session
-    starts) or the server isn't added. Shows no account details.
+    starts, and a server added before sign-in waits for its next retry). Shows no account details.
     """
     started = time.monotonic()
     try:
-        out = json.loads(ctx.dispatch_tool(PREFIX + 'get_user_info', {}))
+        out = ctx.call_mcp(SERVER, 'get_user_info', {}, timeout=30)
+    except PermissionError:
+        out = {'ok': False, 'state': 'not_allowed', 'error': f'{SERVER} is not in the plugin\'s mcp_allowlist'}
     except Exception as exc:
-        out = {'error': type(exc).__name__}
+        out = {'ok': False, 'error': type(exc).__name__}
     result = {'seconds': round(time.monotonic() - started, 2)}
-    if 'result' in out:
+    if out.get('ok'):
         return {'state': 'connected', **result}
     error = str(out.get('error', out))
-    return {'state': 'not_connected' if error.startswith('Unknown tool') else 'error', 'detail': error[:200], **result}
+    state = out.get('state') or ('not_connected' if 'not connected' in error or 'reconnect' in error else 'error')
+    return {'state': state, 'detail': error[:200], **result}
 
 
 def server_entry(url=DEFAULT_URL):
@@ -96,9 +111,22 @@ def configured():
     return server.get('url') if isinstance(server, dict) else None
 
 
-def connect(url=DEFAULT_URL):
-    """Add the Fulcra MCP server to this profile's Hermes config. Hermes signs in to it with OAuth."""
+def allowed(plugin_id):
+    from hermes_cli.config import load_config_readonly
+    entry = ((load_config_readonly().get('plugins') or {}).get('entries') or {}).get(plugin_id) or {}
+    return SERVER in (entry.get('mcp_allowlist') or [])
+
+
+def connect(url, plugin_id):
+    """Add the Fulcra MCP server (Hermes signs in to it with OAuth) and let this plugin call it.
+
+    Only on the user's request: /fulcra connect or the Desktop page's Connect. Other servers, grants and
+    settings are kept.
+    """
     from hermes_cli.config import load_config, save_config
     config = load_config()
     config.setdefault('mcp_servers', {})[SERVER] = server_entry(url)
+    entry = config.setdefault('plugins', {}).setdefault('entries', {}).setdefault(plugin_id, {})
+    allowlist = [name for name in entry.get('mcp_allowlist') or [] if name != SERVER]
+    entry['mcp_allowlist'] = allowlist + [SERVER]
     save_config(config)
