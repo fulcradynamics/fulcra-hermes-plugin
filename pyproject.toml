@@ -2,9 +2,7 @@
 name = "fulcra-hermes-plugin"
 version = "1.0.0"
 requires-python = ">=3.11"
-# Runs inside Hermes with the standard library only; Fulcra calls go through Hermes's MCP connection.
+# Runs inside Hermes on the standard library alone, so installing asks no dependency consent. Keep it
+# empty: Hermes treats any dependency or dependency group here as packages to install.
+# Tests: cd tests && uv run --no-project --with fastapi python -m unittest discover
 dependencies = []
-
-[dependency-groups]
-# Tests import dashboard/plugin_api.py, which Hermes serves with FastAPI.
-dev = ["fastapi>=0.110"]

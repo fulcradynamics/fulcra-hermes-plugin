@@ -1,8 +1,8 @@
 # Development
 
-The plugin runs inside Hermes on the standard library alone. Tests need FastAPI for the Desktop backend:
+The plugin runs inside Hermes on the standard library alone and declares no dependencies, so installing it asks no consent (Hermes treats any `pyproject.toml` dependency or dependency group as packages to install). Tests need FastAPI for the Desktop backend:
 
-    cd tests && uv run --project .. python -m unittest discover -v
+    cd tests && uv run --no-project --with fastapi python -m unittest discover -v
     hermes plugins validate .
     git diff --check
 
