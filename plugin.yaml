@@ -23,11 +23,6 @@ provides_hooks:
 provides_commands:
   - fulcra
 config_schema:
-  mcp-url:
-    label: Fulcra MCP server
-    type: str
-    default: https://mcp.fulcradynamics.com/mcp
-    description: Server /fulcra setup adds to Hermes's MCP servers when it isn't there yet.
   whats-new:
     label: What's new
     type: boolean
@@ -68,3 +63,8 @@ config_schema:
     items: {type: string, minLength: 1}
     default: []
     description: File path prefixes never to report.
+  mcp-url:
+    label: Fulcra MCP server
+    type: string
+    default: https://mcp.fulcradynamics.com/mcp
+    description: Server /fulcra setup adds to Hermes's MCP servers when none named fulcra is there yet.

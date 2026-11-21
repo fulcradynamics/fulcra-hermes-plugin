@@ -1,0 +1,110 @@
+{
+  "upstream": {
+    "description": "The Claude Fulcra plugin, whose skills these are adapted from (they are in turn adapted from the ChatGPT plugin, fulcradynamics/fulcra-openai-plugin)",
+    "repository": "https://github.com/fulcradynamics/claude-plugin",
+    "branch": "main",
+    "commit": "6cdb8620cc5830c9e120a598a64395b109568fbd",
+    "note": "PLAT-942 (match invitations on handshake evidence since the outbox was created) was ported directly from fulcra-openai-plugin cabd553 into invite.md, connection-compatibility.md, scheduled-checks.md and check-messages; the Claude plugin hadn't taken it yet. When it does, those four sources show as changed: confirm and repin."
+  },
+  "files": {
+    "skills/agents-i-know/SKILL.md": {
+      "mode": "adapted",
+      "source": "plugins/fulcra/skills/agents-i-know/SKILL.md",
+      "sha256": "b4302e1ae24b6986391fd6ab52c0d482ab057fc0b71e43abd31e0b273fe79fb9"
+    },
+    "skills/check-messages/SKILL.md": {
+      "mode": "adapted",
+      "source": "plugins/fulcra/skills/check-messages/SKILL.md",
+      "sha256": "7ae7fd8fb040ff4f83c471c4932cc92a47745f33bc1bbfadee8ac8b4b3ca0f16"
+    },
+    "skills/connect-our-agents/SKILL.md": {
+      "mode": "adapted",
+      "source": "plugins/fulcra/skills/connect-our-agents/SKILL.md",
+      "sha256": "bb5144dd88ea8b85dd4d4ad102eed01d724959febf485c8e4522461e22b53e40"
+    },
+    "skills/connect-our-agents/references/channel-description-format.md": {
+      "mode": "adapted",
+      "source": "plugins/fulcra/skills/connect-our-agents/references/channel-description-format.md",
+      "sha256": "3785ae94c11a81bb83031e5903913f33bd760eb87a32b3ad605b7e39d5718fcc"
+    },
+    "skills/connect-our-agents/references/channel-fields.json": {
+      "mode": "verbatim",
+      "source": "plugins/fulcra/skills/connect-our-agents/references/channel-fields.json",
+      "sha256": "3a46092eec69f04de4036e76fda48e84b7fd029455289ab77762a31b177c9a52"
+    },
+    "skills/connect-our-agents/references/channel-metadata.md": {
+      "mode": "verbatim",
+      "source": "plugins/fulcra/skills/connect-our-agents/references/channel-metadata.md",
+      "sha256": "ce0146f4a8bb92468e2dd33ad1ddf679f9f284898d31ee1b357474a352856b21"
+    },
+    "skills/connect-our-agents/references/connection-compatibility.md": {
+      "mode": "adapted",
+      "source": "plugins/fulcra/skills/connect-our-agents/references/connection-compatibility.md",
+      "sha256": "d37193da03946bfd2a44215402f03937ec3ef32ec5dc7b13451cb906b1293d01"
+    },
+    "skills/connect-our-agents/references/contact-preferences.md": {
+      "mode": "adapted",
+      "source": "plugins/fulcra/skills/connect-our-agents/references/contact-preferences.md",
+      "sha256": "7972448fcf37ea8f226371ba402cd60a0c1a14497dabb14f0f040d1441d38700"
+    },
+    "skills/connect-our-agents/references/invite.md": {
+      "mode": "adapted",
+      "source": "plugins/fulcra/skills/connect-our-agents/references/invite.md",
+      "sha256": "ce4dd5c8075b50b4e855da08daa34de3bf51fe30946dd9aca23a4fad3b75b6da"
+    },
+    "skills/connect-our-agents/references/legacy-mesh.md": {
+      "mode": "verbatim",
+      "source": "plugins/fulcra/skills/connect-our-agents/references/legacy-mesh.md",
+      "sha256": "5ed5397aae7468caab3328c0dc276fc658acaf61507e0ea6b67e8e58055441b5"
+    },
+    "skills/connect-our-agents/references/mcp.md": {
+      "mode": "verbatim",
+      "source": "plugins/fulcra/skills/connect-our-agents/references/mcp.md",
+      "sha256": "204f66d325188c78a0776bf7c474267df9f9d02260d410b5e200b8eea5c1bd2b"
+    },
+    "skills/connect-our-agents/references/message.example.json": {
+      "mode": "adapted",
+      "source": "plugins/fulcra/skills/connect-our-agents/references/message.example.json",
+      "sha256": "c319e51e8fafb9f20c1f4cab51da4603cd0f0eceafe313999492c76f0991e681"
+    },
+    "skills/connect-our-agents/references/private-state.md": {
+      "mode": "verbatim",
+      "source": "plugins/fulcra/skills/connect-our-agents/references/private-state.md",
+      "sha256": "1520a5ac990601d02718d61dca46bfd5f8727c3d61ef270e0fe3e873f5f8658b"
+    },
+    "skills/connect-our-agents/references/scheduled-checks.md": {
+      "mode": "adapted",
+      "source": "plugins/fulcra/skills/connect-our-agents/references/scheduled-checks.md",
+      "sha256": "b6fc87d7bbdf4a17a5edb6603d98a9f7b5c23d4dfb45a0aa0e348d7e5cc4120b"
+    },
+    "skills/files/SKILL.md": {
+      "mode": "adapted",
+      "source": "plugins/fulcra/skills/files/SKILL.md",
+      "sha256": "1a1dd4b83766b6f00eea828a75f2ffcb06edc88634aa893f904608695a433633"
+    },
+    "skills/invite/SKILL.md": {
+      "mode": "adapted",
+      "source": "plugins/fulcra/skills/invite/SKILL.md",
+      "sha256": "b116bfb0cb0c879c57c83c0474e3db3c1ec0167a74e57f489e8facc8a60e3624"
+    },
+    "skills/reply-to-messages/SKILL.md": {
+      "mode": "verbatim",
+      "source": "plugins/fulcra/skills/reply-to-messages/SKILL.md",
+      "sha256": "0e928b4cd2e46ec5cd71f0ab340d7103eb61406f3563f47140f6a7ce62fe7a73"
+    },
+    "skills/send/SKILL.md": {
+      "mode": "adapted",
+      "source": "plugins/fulcra/skills/send/SKILL.md",
+      "sha256": "1abd5720dd8e227f69466687c6e09fe342e86eb2234d121687af7bbea18493d4"
+    },
+    "skills/set-up-agent-contacts/SKILL.md": {
+      "mode": "adapted",
+      "source": "plugins/fulcra/skills/set-up-agent-contacts/SKILL.md",
+      "sha256": "663dd06db6e7b35f693bdad1c683a8aca5347a04609b098c8e1ad09946d35c56"
+    },
+    "skills/whats-new/SKILL.md": {
+      "mode": "original"
+    }
+  },
+  "ignored_upstream": {}
+}

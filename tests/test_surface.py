@@ -12,7 +12,8 @@ class SurfaceTests(unittest.TestCase):
         ctx.state.set = Mock()
         plugin.register(ctx)
         manifest = (ROOT / 'plugin.yaml').read_text()
-        listed = lambda key: re.findall(r'- (\S+)', re.search(rf'^{key}:\n((?:  - .*\n)+)', manifest, re.M)[1])
+        block = lambda key: re.search(rf'^{key}:\n((?:  - .*\n)+)', manifest, re.M)
+        listed = lambda key: re.findall(r'- (\S+)', block(key)[1]) if block(key) else []
         self.assertEqual(sorted(ctx.tools), sorted(listed('provides_tools')))
         self.assertEqual(sorted(ctx.hooks), sorted(listed('provides_hooks')))
         self.assertEqual(set(ctx.commands), {'fulcra', 'cli fulcra'})
