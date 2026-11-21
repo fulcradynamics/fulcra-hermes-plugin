@@ -9,7 +9,7 @@ def register(ctx):
 
     Fulcra tools come from the Fulcra MCP server that /fulcra setup adds.
     """
-    mcp_api._FULCRA_CTX = ctx  # Spike: lets dashboard/plugin_api.py test reaching ctx.
+    mcp_api._FULCRA_CTX = ctx  # dashboard/plugin_api.py calls Fulcra tools through this ctx.
     whats_new.register(ctx)
     for skill in sorted((Path(__file__).parent / 'skills').glob('*/SKILL.md')):
         ctx.register_skill(skill.parent.name, skill)
