@@ -1,4 +1,4 @@
-"""Spike: can a backend route reach the Fulcra MCP server's tools? Reports outcomes only, never data."""
+"""Spike: can a backend route reach the Fulcra MCP tools Hermes already connected? Reports outcomes only, never data."""
 import asyncio
 import json
 import os
@@ -17,52 +17,24 @@ def _outcome(fn):
         out = fn()
         parsed = json.loads(out) if isinstance(out, str) else out
         ok = isinstance(parsed, dict) and 'result' in parsed and 'own_fulcra_userid' in str(parsed['result'])
-        return {'ok': ok, 'keys': sorted(parsed) if isinstance(parsed, dict) else type(parsed).__name__,
-                'error': None if ok else str(parsed)[:200], 'seconds': round(time.monotonic() - started, 2)}
+        return {'ok': ok, 'error': None if ok else str(parsed)[:200], 'seconds': round(time.monotonic() - started, 2)}
     except Exception as exc:
         return {'ok': False, 'exception': f'{type(exc).__name__}: {exc}'[:300],
                 'seconds': round(time.monotonic() - started, 2)}
 
 
-def _probe(discover=False):
+def _probe():
     from tools.registry import registry
-    discovered = None
-    if discover:
-        started = time.monotonic()
-        from tools.mcp_tool_discovery import discover_mcp_tools
-        names = discover_mcp_tools(allowed_mcp_names=['fulcra-context'])
-        discovered = {'new_tools': len(names), 'seconds': round(time.monotonic() - started, 2)}
-    entry = registry.get_entry(TOOL)
-    mcp_names = [n for n in registry.get_all_tool_names() if n.startswith('mcp__fulcra_context__')] \
-        if hasattr(registry, 'get_all_tool_names') else None
     ctxs = [m._FULCRA_CTX for m in list(sys.modules.values()) if getattr(m, '_FULCRA_CTX', None) is not None]
     return {
         'pid': os.getpid(),
-        'discovered': discovered,
-        'process': ' '.join(sys.argv[:4])[:160],
-        'registered': entry is not None,
-        'fulcra_context_tools': len(mcp_names) if mcp_names is not None else 'unknown',
-        'registry_dispatch': _outcome(lambda: registry.dispatch(TOOL, {'direction': 'incoming'})),
-        'registered_scoped': _scoped_entry(registry),
-        'registry_dispatch_scoped': _outcome(lambda: registry.dispatch(TOOL, {'direction': 'incoming'},
-                                                                       scope=_scope())),
+        'process': os.path.basename(sys.argv[0]),
+        'fulcra_context_tools': len([n for n in registry.get_all_tool_names() if n.startswith('mcp__fulcra_context__')]),
         'ctx_found': len(ctxs),
         'ctx_dispatch': _outcome(lambda: ctxs[0].dispatch_tool(TOOL, {'direction': 'incoming'})) if ctxs else None,
     }
 
 
-def _scope():
-    from hermes_cli.plugins import get_plugin_manager
-    return get_plugin_manager().scope_key
-
-
-def _scoped_entry(registry):
-    try:
-        return registry.get_entry(TOOL, scope=_scope()) is not None
-    except Exception as exc:
-        return f'{type(exc).__name__}: {exc}'[:200]
-
-
 @router.get('/probe')
-async def probe(discover: bool = False):
-    return await asyncio.to_thread(_probe, discover)
+async def probe():
+    return await asyncio.to_thread(_probe)
