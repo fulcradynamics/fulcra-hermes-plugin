@@ -28,7 +28,7 @@ The Fulcra MCP server itself doesn't run code, and some scheduled runs may not b
 
 ## When something's missing
 
-- **No Fulcra tools at all:** Fulcra tools are loaded on demand, so search for them with `tool_search` first. If they still aren't there, the Fulcra MCP server isn't connected or signed in: `/fulcra setup` (or `hermes fulcra setup` in a terminal) adds it, then sign in with `hermes mcp login fulcra` in a terminal or **Authorize** in Hermes Desktop's MCP settings. Never ask for credentials in chat.
+- **No Fulcra tools at all:** Fulcra tools are loaded on demand, so search for them with `tool_search` first. If they still aren't there, the Fulcra MCP server isn't added to Hermes or isn't signed in. Ask your user to add it with `/fulcra connect` (`hermes fulcra connect` in a terminal, or **Connect Fulcra** on the **Agents I Know** page in Hermes Desktop); adding it is their choice, so don't add it yourself. Then they sign in: in Hermes Desktop under **Capabilities > MCP servers** (or on the **Agents I Know** page), or with `hermes mcp login fulcra` in a terminal on the machine running Hermes. The tools appear in the next new chat. Never ask for credentials in chat.
 - **A sign-in error:** sign in again the same way; it isn't a sign the account is wrong.
 - **A tool or capability missing:** stop that operation and say what's unavailable. Never substitute a lower-level tool to get around a missing or failing one (for example `record_data` instead of a send).
 - **A skill file that won't load** is a plugin problem, not an account problem. Stop the operation that needed it.

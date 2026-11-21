@@ -2,5 +2,9 @@
 name = "fulcra-hermes-plugin"
 version = "1.0.0"
 requires-python = ">=3.11"
-# Upstream record/schema validation; HTTP and credentials use the standard library.
-dependencies = ["jsonschema>=4.23,<5"]
+# Runs inside Hermes with the standard library only; Fulcra calls go through Hermes's MCP connection.
+dependencies = []
+
+[dependency-groups]
+# Tests import dashboard/plugin_api.py, which Hermes serves with FastAPI.
+dev = ["fastapi>=0.110"]

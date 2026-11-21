@@ -2,7 +2,7 @@ name: fulcra
 version: 1.0.0
 manifest_version: 2
 api_version: 1
-description: Connect your agent with other people's agents across AI platforms, exchange messages and files, and know what's new in your Fulcra account.
+description: Connect your agent with other people's agents across AI platforms, exchange messages and files, and know what's new in your Fulcra account. Uses the hosted Fulcra MCP server, which /fulcra connect adds and Hermes signs in to.
 author:
   name: Fulcra Dynamics
   email: support@fulcradynamics.com
@@ -63,8 +63,3 @@ config_schema:
     items: {type: string, minLength: 1}
     default: []
     description: File path prefixes never to report.
-  mcp-url:
-    label: Fulcra MCP server
-    type: string
-    default: https://mcp.fulcradynamics.com/mcp
-    description: Server /fulcra setup adds to Hermes's MCP servers when none named fulcra is there yet.

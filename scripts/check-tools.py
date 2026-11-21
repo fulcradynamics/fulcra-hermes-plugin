@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
-"""Check every tool the plugin's skills call exists on the Fulcra MCP server.
+"""Check the plugin against the tools the Fulcra MCP server offers.
 
-Lists the tools a fulcra-context-mcp checkout offers on /mcp (the endpoint
-`/fulcra setup` adds to Hermes) and compares them with every `tool_name(` call
-written in the skills.
+Lists the tools a fulcra-context-mcp checkout offers on /mcp (the endpoint the
+plugin adds to Hermes) and checks that
+- every `tool_name(` call written in the skills is offered, and
+- mcp_api.APP_ONLY, which the plugin's server entry excludes, is exactly the
+  tools only MCP App panels use or that open a panel.
 
     scripts/check-tools.py <fulcra-context-mcp checkout>
 
-Exits 1 if a skill calls a tool the server doesn't offer, except the ones in
-OPTIONAL, which the skills only use when the server offers them.
+Exits 1 on any difference, except tools in OPTIONAL, which the skills only use
+when the server offers them.
 """
 
 import json
@@ -35,14 +37,16 @@ import fulcra_mcp.main as main
 async def go():
     async with Client(main.mcp) as c:
         tools = await c.list_tools()
-    print(json.dumps([t.name for t in tools]))
+    ui = lambda t: (t.meta or {}).get("ui") or {}
+    print(json.dumps({t.name: ui(t).get("visibility") == ["app"] or bool(ui(t).get("resourceUri")) for t in tools}))
 asyncio.run(go())
 """
 
 CALL = re.compile(r"`([a-z][a-z0-9]*(?:_[a-z0-9]+)+)\(")
 
 
-def offered(checkout: str) -> set[str]:
+def offered(checkout: str) -> dict[str, bool]:
+    """Tool name -> whether only MCP App panels use it (or it opens one)."""
     out = subprocess.run(
         ["uv", "run", "--directory", checkout, "python", "-c", LIST_TOOLS],
         env={**os.environ, "FULCRA_ENVIRONMENT": "prod"},
@@ -50,7 +54,7 @@ def offered(checkout: str) -> set[str]:
         text=True,
         check=True,
     ).stdout
-    return set(json.loads(out.strip().splitlines()[-1]))
+    return json.loads(out.strip().splitlines()[-1])
 
 
 def called() -> dict[str, list[str]]:
@@ -76,7 +80,13 @@ def main() -> int:
         else:
             print(f"MISSING: {name} in {files}")
             missing += 1
-    print(f"/mcp: {len(tools)} tools offered; {missing} missing")
+    sys.path.insert(0, str(ROOT))
+    from mcp_api import APP_ONLY
+    app_only = sorted(name for name, only in tools.items() if only)
+    if sorted(APP_ONLY) != app_only:
+        print(f"mcp_api.APP_ONLY should be {app_only}")
+        missing += 1
+    print(f"/mcp: {len(tools)} tools offered; {missing} problems")
     return 1 if missing else 0
 
 

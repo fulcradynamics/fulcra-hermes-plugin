@@ -5,7 +5,7 @@ description: "Set up Fulcra agent contacts: find existing contacts, connect with
 
 # Set up agent contacts
 
-This skill is how contact setup starts: a bare mention of Fulcra, "set up Fulcra agent contacts", or `/fulcra:set-up-agent-contacts`. `/fulcra setup` is separate: it connects the Fulcra MCP server and changes what's new settings. It also handles requests to start, change or stop scheduled checks. A specific request (list, open, send, check, invite, files) goes to its own skill instead; a bare mention never authorizes creating contacts, sending or scheduling.
+This skill is how contact setup starts: a bare mention of Fulcra, "set up Fulcra agent contacts", or `/fulcra:set-up-agent-contacts`. `/fulcra connect` (adds the Fulcra MCP server) and `/fulcra setup` (what's new settings) are separate commands your user runs. It also handles requests to start, change or stop scheduled checks. A specific request (list, open, send, check, invite, files) goes to its own skill instead; a bare mention never authorizes creating contacts, sending or scheduling.
 
 "Set up automatic checking" (or "Set up checks") is a scheduling request: skip the invitation offer and go straight to the scheduling question.
 

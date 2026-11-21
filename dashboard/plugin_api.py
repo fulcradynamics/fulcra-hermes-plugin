@@ -1,47 +1,44 @@
-"""Backend for the Desktop Agents I Know page (proof of concept).
+"""Backend for the Fulcra page in Hermes Desktop.
 
-Calls the Fulcra MCP server's tools through the plugin's own ctx.dispatch_tool, using the connection
-and sign-in Hermes already made. Never handles credentials.
+Reaches Fulcra only through the plugin's ctx.dispatch_tool, on the MCP connection and sign-in Hermes made;
+never handles credentials. Sign-in itself goes through Hermes's own gateway RPC from desktop/plugin.js.
 """
 import asyncio
-import json
 import sys
-import time
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Body, HTTPException
 
 router = APIRouter()
-SERVER = 'fulcra'
-PING_TOOL = f'mcp__{SERVER}__get_user_info'
 
 
-def _ctx():
-    # register() stores the plugin's ctx on its mcp_api module; this route file is loaded separately by path.
-    return next((m._FULCRA_CTX for m in list(sys.modules.values())
-                 if getattr(m, '_FULCRA_CTX', None) is not None), None)
+def _plugin():
+    # register() stores the plugin's ctx on its mcp_api module; Hermes loads this file separately, by path.
+    module = next((m for m in list(sys.modules.values()) if getattr(m, '_FULCRA_CTX', None) is not None), None)
+    if module is None:
+        raise HTTPException(503, 'The Fulcra plugin is not loaded in this Hermes backend. Enable it and restart.')
+    return module
 
 
-def _configured():
-    from hermes_cli.config import load_config_readonly
-    return SERVER in (load_config_readonly().get('mcp_servers') or {})
+@router.get('/status')
+async def status():
+    mcp_api = _plugin()
+    return {'server': mcp_api.SERVER, 'url': mcp_api.configured(), 'default_url': mcp_api.DEFAULT_URL}
 
 
-def _ping():
-    if not _configured():
-        return {'state': 'not_configured'}
-    ctx = _ctx()
-    if ctx is None:
-        return {'state': 'error', 'detail': 'The Fulcra plugin is not loaded in this backend.'}
-    started = time.monotonic()
-    out = json.loads(ctx.dispatch_tool(PING_TOOL, {}))
-    seconds = round(time.monotonic() - started, 2)
-    if 'result' not in out:
-        error = str(out.get('error', out))
-        state = 'not_connected' if error.startswith('Unknown tool') else 'error'
-        return {'state': state, 'detail': error[:200], 'tool': PING_TOOL, 'seconds': seconds}
-    return {'state': 'connected', 'tool': PING_TOOL, 'seconds': seconds}
+@router.post('/connect')
+async def connect(body: dict = Body(default={})):
+    """Add the Fulcra MCP server; the page asks the user first."""
+    mcp_api = _plugin()
+    url = body.get('url') or mcp_api.DEFAULT_URL
+    if not isinstance(url, str) or not url.startswith('https://'):
+        raise HTTPException(400, 'The server URL must use https.')
+    await asyncio.to_thread(mcp_api.connect, url)
+    return {'server': mcp_api.SERVER, 'url': url}
 
 
 @router.post('/ping')
 async def ping():
-    return await asyncio.to_thread(_ping)
+    mcp_api = _plugin()
+    if not mcp_api.configured():
+        return {'state': 'not_configured'}
+    return await asyncio.to_thread(mcp_api.probe, mcp_api._FULCRA_CTX)

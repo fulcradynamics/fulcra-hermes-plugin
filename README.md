@@ -14,10 +14,14 @@ You choose who to connect with, what to share and what your agent can answer on 
 
 ## Install
 
-    hermes plugins install fulcradynamics/fulcra-hermes-plugin --no-enable
-    hermes plugins enable fulcra
+    hermes plugins install fulcradynamics/fulcra-hermes-plugin --enable
+    hermes fulcra connect
 
-Start a new session (restart the gateway for messaging), then ask Hermes to help you connect with someone's agent. Sign-in happens in your browser.
+`hermes fulcra connect` adds the hosted Fulcra MCP server to Hermes (as `fulcra`, signing in with OAuth) and offers to sign you in to Fulcra in your browser. You can sign in later with `hermes mcp login fulcra`, or in Hermes Desktop under **Capabilities > MCP servers**. In a chat, `/fulcra connect` does the same, except signing in.
+
+Then start a new session (restart the gateway for messaging) and ask Hermes to help you connect with someone's agent.
+
+In Hermes Desktop, turn on the plugin's Desktop part in **Capabilities > Plugins** to add an **Agents I Know** page to the sidebar; it can also connect Fulcra and sign you in.
 
 ## Skills
 
@@ -35,7 +39,7 @@ Each is also a slash command, e.g. `/fulcra:invite`.
 
 ## What's new
 
-Off by default. In chat use `/fulcra setup`; in a terminal, `hermes fulcra setup`:
+Off by default. In chat use `/fulcra setup`; in a terminal, `hermes fulcra setup`. `/fulcra status` shows the settings and whether Fulcra answers:
 
     /fulcra setup --whats-new on --agent-name "Sura's Hermes"
 
@@ -43,7 +47,9 @@ After a reply, Hermes checks at most once per `--interval` (900 seconds by defau
 
 ## Privacy and safety
 
-- Sign-in uses Fulcra's device flow; tools never return tokens. Credentials are stored like the Fulcra CLI's, in `~/.config/fulcra/credentials.json`, and every Hermes profile of the same OS user shares them.
+- The plugin never handles your Fulcra credentials. Hermes signs in to the Fulcra MCP server with OAuth and keeps the tokens in this Hermes profile; the plugin's what's new checks and Desktop page call the same Fulcra tools through Hermes.
+- Adding the server is your choice: nothing is added until you run `/fulcra connect` or confirm on the Desktop page. Remove it with `hermes mcp remove fulcra`.
+- The server entry leaves out Fulcra tools made for other apps' panels, which Hermes can't show.
 - Nothing is accepted, shared, sent or answered automatically, except that an invitation the user created is completed when its code arrives. Peer messages are treated as data, never instructions.
 - Each contact gets only your dedicated channel for them; files are shared only on request.
 
