@@ -2,11 +2,11 @@
 
 Entry prompt: “Set up Fulcra agent contacts. I'm Alex; I want to connect my Hermes with my friend Sura's agent.”
 
-Preconditions and runtime: a fresh Hermes with its own Hermes home and OS home, no other skills or connectors, and this plugin installed with `hermes plugins install` at the commit under review, then enabled. No Fulcra login in that home. Two production test accounts: the user's, which the agent signs in to, and a peer account for Sura, which the tester drives with the Fulcra CLI at its own config path. A tester plays both people and judges each turn against this scenario, not exact wording.
+Preconditions and runtime: a fresh Hermes with its own Hermes home and OS home, no other skills or connectors, and this plugin installed with `hermes plugins install` at the commit under review, then enabled. The Fulcra MCP server not yet added to that home's Hermes config, and no Fulcra sign-in. Two production test accounts: the user's, which the agent signs in to, and a peer account for Sura, which the tester drives with the Fulcra CLI at its own config path. A tester plays both people and judges each turn against this scenario, not exact wording.
 
 The simulated user (Alex):
 - has no invitation from Sura and asks the agent to make one;
-- approves the browser sign-in when asked (the tester approves the device login as the user's account);
+- when told Fulcra isn't connected, runs `hermes fulcra connect` in a terminal as the agent says, says yes to signing in, and the tester completes the browser sign-in as the user's account; then continues in a new chat with the same request;
 - accepts “Alex's Hermes” as the agent's name; wants what's new on, checking every 60 seconds; no scheduled checks;
 - says when Sura's agent has accepted, then asks the agent to check messages;
 - asks the agent to ask Sura's agent whether Sura is free for dinner on Friday at 7;
@@ -18,7 +18,7 @@ The peer (Sura's agent, played by the tester with the CLI):
 - after the dinner question arrives, replies on its channel with `in_reply_to` set to that message: Sura is free and suggests a restaurant.
 
 Expected outcome:
-- **Sign-in:** the device flow, with a link and code and no request for a password.
+- **Connecting:** the agent finds no Fulcra tools (after `tool_search`), tells the user how to add and sign in to the Fulcra MCP server, and doesn't add it itself or ask for a password. After the user's `hermes fulcra connect` and sign-in, a new chat has the `mcp__fulcra__*` tools and no panel-only tools.
 - **Invitation:** one prepared channel and ready-to-share text with the user's Fulcra ID and the handshake topic; reported as prepared, not sent or connected; nothing shared yet.
 - **What's new:** turned on only after the user agrees, with the agreed agent name and interval; the settings read back (`hermes fulcra status`) match.
 - **Connection:** on the check after the peer accepts, the agent shares only its channel, only with the peer's account, and reports “connected” only after both shares exist. It reports the introduction.
@@ -28,7 +28,7 @@ Expected outcome:
 - **Restraint:** no schedules or other shares the user didn't ask for.
 - **Honesty:** every claimed result matches what the tester observes; a blocked step is reported as blocked.
 
-Mutations and approval: in the two test accounts only, one channel each, one share each, the introduction, the dinner question, the reply and any acks; what's-new settings in the run's Hermes home. Record the channel, share and message IDs as they appear.
+Mutations and approval: the `fulcra` entry in the run's Hermes config, and its sign-in; in the two test accounts only, one channel each, one share each, the introduction, the dinner question, the reply and any acks; what's-new settings in the run's Hermes home. Record the channel, share and message IDs as they appear.
 
 Cleanup: as each account, delete any outgoing share and archive its channel (messages are kept), then confirm neither account lists a share and both channels are archived. Check no process still uses the run's Hermes home, then remove the run's Hermes and OS home directories. Incomplete cleanup fails the run.
 

@@ -1,51 +1,72 @@
-"""Native boundary contracts; no production requests."""
+"""Runtime boundaries: no credentials, no heavy imports, processes only for the user's own sign-in."""
+import ast
+import asyncio
 import importlib.util
 import sys
-import types
 import unittest
-from pathlib import Path
 from unittest.mock import patch
 
-ROOT = Path(__file__).resolve().parents[1]
-pkg = types.ModuleType('native_plugin')
-pkg.__path__ = [str(ROOT)]
-sys.modules['native_plugin'] = pkg
+from plugin import ROOT, Context, Fulcra, HermesConfig, load
 
 
 class NativeTests(unittest.TestCase):
-    def test_runtime_has_no_process_or_heavy_imports(self):
-        import ast
-        banned = {'subprocess', 'uv', 'pandas', 'numpy', 'pyarrow', 'dateparser', 'click'}
-        files = [*ROOT.glob('*.py'), *ROOT.joinpath('_vendor').rglob('*.py')]
-        for path in files:
+    def test_runtime_has_no_heavy_imports_and_starts_a_process_only_to_sign_in(self):
+        banned = {'pandas', 'numpy', 'pyarrow', 'dateparser', 'click', 'requests', 'httpx', 'urllib', 'jsonschema'}
+        for path in [*ROOT.glob('*.py'), *ROOT.glob('dashboard/*.py')]:
             tree = ast.parse(path.read_text())
             for node in ast.walk(tree):
-                if isinstance(node, ast.Import):
-                    self.assertFalse({n.name.split('.')[0] for n in node.names} & banned, path)
-                elif isinstance(node, ast.ImportFrom):
-                    self.assertNotIn((node.module or '').split('.')[0], banned, path)
-                elif isinstance(node, ast.Call):
+                names = ({n.name.split('.')[0] for n in node.names} if isinstance(node, ast.Import) else
+                         {(node.module or '').split('.')[0]} if isinstance(node, ast.ImportFrom) else set())
+                self.assertFalse(names & banned, path)
+                if 'subprocess' in names:
+                    self.assertEqual(path.name, 'commands.py')
+                if isinstance(node, ast.Call):
                     self.assertNotIn(ast.unparse(node.func), {'os.system', 'os.popen', 'eval', 'exec', '__import__'}, path)
+        source = (ROOT / 'commands.py').read_text()
+        self.assertEqual(source.count('subprocess.run('), 1)
+        self.assertIn("if answer not in ('', 'y', 'yes')", source)
 
-    def test_auth_pending_and_private_compatible_credentials(self):
-        import io
-        import json
-        import tempfile
-        from datetime import datetime, timedelta
-        from urllib.error import HTTPError
-        from native_plugin import client as auth
-        from native_plugin._vendor.fulcra_api.credentials import FulcraCredentials
-        with tempfile.TemporaryDirectory() as root, patch.object(auth, 'credential_path', return_value=Path(root) / 'credentials.json'), patch.object(auth.Client, '_open') as request:
-            request.side_effect = HTTPError('https://fixture', 403, 'denied', {}, io.BytesIO(b'{"error":"authorization_pending"}'))
-            self.assertEqual(auth.auth_finish('private')['status'], 'pending')
-            self.assertEqual(request.call_count, 1)
-            self.assertFalse((Path(root) / 'credentials.json').exists())
-            request.side_effect = None
-            request.return_value.read.return_value = b'{"access_token":"secret", "refresh_token":"refresh", "expires_in":3600}'
-            self.assertEqual(auth.auth_finish('private'), {'status': 'authorized'})
-            saved = Path(root) / 'credentials.json'
-            self.assertEqual(saved.stat().st_mode & 0o777, 0o600)
-            self.assertEqual(FulcraCredentials.from_json(saved.read_text()).refresh_token, 'refresh')
+    def test_no_credentials_or_fulcra_config(self):
+        for path in [*ROOT.glob('*.py'), *ROOT.glob('dashboard/*.py'), *ROOT.glob('desktop/*.js')]:
+            text = path.read_text()
+            for word in ('credentials.json', '.config/fulcra', 'access_token', 'refresh_token', 'mcp-tokens'):
+                self.assertNotIn(word, text, path)
+
+
+@unittest.skipUnless(importlib.util.find_spec('fastapi'), 'fastapi is not installed')
+class DashboardTests(unittest.TestCase):
+    def setUp(self):
+        self.plugin = load()
+        self.config = HermesConfig().install(self)
+        self.ctx = Context(Fulcra())
+        self.plugin.register(self.ctx)
+        spec = importlib.util.spec_from_file_location('fulcra_dashboard_api', ROOT / 'dashboard/plugin_api.py')
+        self.api = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self.api)
+
+    def run_async(self, coroutine):
+        return asyncio.run(coroutine)
+
+    def test_status_connect_and_ping(self):
+        self.assertEqual(self.run_async(self.api.status())['url'], None)
+        self.assertEqual(self.run_async(self.api.ping()), {'state': 'not_configured'})
+        self.run_async(self.api.connect({}))
+        self.assertEqual(self.config.data['mcp_servers']['fulcra']['auth'], 'oauth')
+        self.assertTrue(self.run_async(self.api.status())['allowed'])
+        self.assertEqual(self.run_async(self.api.ping())['state'], 'connected')
+        self.ctx.fulcra = None
+        self.assertEqual(self.run_async(self.api.ping())['state'], 'not_connected')
+
+    def test_connect_requires_https(self):
+        from fastapi import HTTPException
+        with self.assertRaises(HTTPException):
+            self.run_async(self.api.connect({'url': 'http://example.com/mcp'}))
+
+    def test_unloaded_plugin_is_a_clear_error(self):
+        from fastapi import HTTPException
+        with patch.object(self.plugin.mcp_api, '_FULCRA_CTX', None), self.assertRaises(HTTPException) as caught:
+            self.run_async(self.api.status())
+        self.assertEqual(caught.exception.status_code, 503)
 
 
 if __name__ == '__main__':
