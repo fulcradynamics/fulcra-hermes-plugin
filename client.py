@@ -51,6 +51,12 @@ class Client(FulcraAPI):
     def refresh_if_expiring(self):
         pass  # Hermes refreshes the sign-in.
 
+    def get_fulcra_userid(self):
+        # The vendored client reads this from the access token, which only Hermes holds.
+        if getattr(self, '_userid', None) is None:
+            self._userid = self.get_user_info()['userid']
+        return self._userid
+
     def fulcra_api(self, url_path, method='GET', query=None, data=None, return_http_response=False,
                    content_type='application/json', authenticated=True):
         from hermes_cli.plugin_provider_requests import ProviderNotSignedIn, credentialed_provider_request

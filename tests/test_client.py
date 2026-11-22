@@ -46,6 +46,12 @@ class ClientTests(unittest.TestCase):
         self.assertEqual((provider, method, url, body), ('fulcra', 'GET', 'https://api.devfulcra.com/user/v1alpha1/info?a=1', None))
         self.assertIsNone(api.fulcra_credentials)
 
+    def test_user_id_comes_from_the_api_not_a_token(self):
+        self.responses = [Response(body=b'{"userid": "u-1", "created": "x"}')]
+        api = self.client.client()
+        self.assertEqual((api.get_fulcra_userid(), api.get_fulcra_userid()), ('u-1', 'u-1'))
+        self.assertEqual([c[2] for c in self.calls], ['https://api.devfulcra.com/user/v1alpha1/info'])
+
     def test_signed_out_explains_how_to_sign_in(self):
         self.responses = [self.not_signed_in('no')]
         with self.assertRaises(self.client.AuthenticationRequired) as caught:
