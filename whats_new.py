@@ -105,7 +105,7 @@ def check(api, state, values, now):
         # File uploads also count as FileChange records; the file items below already report them.
         items += [{'kind': 'data', 'data_type': name, 'records': count}
                   for name, count in updates['data_types'].items()
-                  if count and name.replace('_', '').lower() != 'filechange'
+                  if count and name.replace('_', '').lower() != 'filechange']
         for file in updates['file_changes']:
             key = json.dumps([file['id'], file['state'], file.get('uploaded_at'), file.get('deleted_at')])
             if key not in state['files']:
