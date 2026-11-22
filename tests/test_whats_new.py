@@ -70,7 +70,7 @@ class WhatsNewTests(unittest.TestCase):
                          body='Not for you', recipients=['other'])
         self.fulcra.post(CHANNEL, '00000000-0000-4000-8000-000000000003', sender='sura', kind='shout', body='Bad')
         stamp = datetime.now(timezone.utc).isoformat()
-        self.fulcra.updates = {'data_types': {'Event/notes': 2, 'Event/empty': 0}, 'file_changes': [
+        self.fulcra.updates = {'data_types': {'Event/notes': 2, 'Event/empty': 0, 'FileChange': 2}, 'file_changes': [
             {'id': 'f1', 'full_name': '/work/report.md', 'state': 'uploaded', 'uploaded_at': stamp},
             {'id': 'f2', 'full_name': '/private/x', 'state': 'uploaded', 'uploaded_at': stamp}]}
         self.due()
@@ -81,6 +81,7 @@ class WhatsNewTests(unittest.TestCase):
         self.assertEqual(sorted(i['kind'] for i in items), ['contact_channel', 'data', 'file', 'message'])
         self.assertEqual(next(i for i in items if i['kind'] == 'message')['preview'], 'Draft is ready')
         self.assertEqual(next(i for i in items if i['kind'] == 'file')['path'], '/work/report.md')
+        self.assertEqual([i['data_type'] for i in items if i['kind'] == 'data'], ['Event/notes'])
         self.assertEqual(next(i for i in items if i['kind'] == 'contact_channel')['owner'], SURA)
         self.assertIn('UNTRUSTED', notice)
         self.assertIsNone(self.turn())
