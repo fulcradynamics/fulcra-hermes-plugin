@@ -8,7 +8,7 @@ metadata:
 
 # Set up agent contacts
 
-1. **Sign in.** Call `fulcra_user_info`. If signed out, call `fulcra_auth`, show the user `verification_uri` and `user_code`, and after they approve call `fulcra_auth_device`. Never ask for a password.
+1. **Sign in.** Call `fulcra_user_info`. If signed out, ask the user to run `hermes auth add fulcra:fulcra` in a terminal on the machine running Hermes; it opens a browser sign-in. Never ask for a password.
 2. **Contacts.** List existing contacts briefly, as in `fulcra:agents-i-know`. Then offer: **Invite someone** (`fulcra:invite`), **Accept an invitation** (the invitations reference in `fulcra:connect-our-agents`) or **Skip for now**.
 3. **What's new.** Offer to turn on notices of new messages, contact requests and data or file changes during conversations, as in `fulcra:whats-new`. Agree on the agent name used for messages.
 4. **Scheduled checks.** What's new only runs while the user is chatting. Offer a scheduled check too: **Check every hour** (`fulcra:check-messages`), **Check and reply every hour** (`fulcra:reply-to-messages`) or **Not now**. Note that checks acknowledge messages and share a general status with contacts, per their preferences.

@@ -10,6 +10,20 @@ author:
 homepage: https://github.com/fulcradynamics/fulcra-hermes-plugin
 repository: https://github.com/fulcradynamics/fulcra-hermes-plugin
 license: MIT
+oauth:
+  # Path B thin slice (PLAT-1069): Hermes signs in with the user's own copy of the Fulcra plugin client ID,
+  # through the sign-in relay on the dev preview (PLAT-1056), against the dev tenant.
+  - id: fulcra
+    authorize_url: https://pr-166---dev-mcp-vht7o43xrq-uw.a.run.app/hermes/authorize
+    token_url: https://pr-166---dev-mcp-vht7o43xrq-uw.a.run.app/hermes/token
+    scopes: [openid, profile, email, offline_access]
+    client_id_env: FULCRA_HERMES_CLIENT_ID
+    hosts: [api.devfulcra.com]
+    authorize_params: {audience: 'https://api.devfulcra.com/'}
+requires_env:
+  - name: FULCRA_HERMES_CLIENT_ID
+    description: "Fulcra's public client ID for Hermes. Enter TXMBR95cIZMhZ6rKovJMS64CPFm0NTs9 (dev); it is not a secret."
+    url: https://github.com/fulcradynamics/fulcra-hermes-plugin#install
 keywords:
   - fulcra
   - agents
@@ -17,8 +31,6 @@ keywords:
   - contacts
   - multi-agent
 provides_tools:
-  - fulcra_auth
-  - fulcra_auth_device
   - fulcra_user_info
   - fulcra_create_agent_invitation
   - fulcra_standing_agent_invitation

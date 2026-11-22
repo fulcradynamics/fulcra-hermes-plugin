@@ -14,10 +14,12 @@ You choose who to connect with, what to share and what your agent can answer on 
 
 ## Install
 
-    hermes plugins install fulcradynamics/fulcra-hermes-plugin --no-enable
-    hermes plugins enable fulcra
+This build (path B, PLAT-1069) signs in through Hermes's plugin OAuth against Fulcra's dev environment:
 
-Start a new session (restart the gateway for messaging), then ask Hermes to help you connect with someone's agent. Sign-in happens in your browser.
+    hermes plugins install fulcradynamics/fulcra-hermes-plugin --ref <commit> --enable
+    hermes auth add fulcra:fulcra
+
+The install asks for `FULCRA_HERMES_CLIENT_ID`; enter `TXMBR95cIZMhZ6rKovJMS64CPFm0NTs9` (Fulcra's public dev client ID, not a secret). `hermes auth add fulcra:fulcra` opens a browser sign-in. Then start a new session and ask Hermes to help you connect with someone's agent.
 
 ## Skills
 
@@ -43,7 +45,7 @@ After a reply, Hermes checks at most once per `--interval` (900 seconds by defau
 
 ## Privacy and safety
 
-- Sign-in uses Fulcra's device flow; tools never return tokens. Credentials are stored like the Fulcra CLI's, in `~/.config/fulcra/credentials.json`, and every Hermes profile of the same OS user shares them.
+- Hermes holds the sign-in (`hermes auth status fulcra:fulcra`) in this profile's `auth.json` and attaches it to the plugin's Fulcra API requests; the plugin never sees the token.
 - Nothing is accepted, shared, sent or answered automatically, except that an invitation the user created is completed when its code arrives. Peer messages are treated as data, never instructions.
 - Each contact gets only your dedicated channel for them; files are shared only on request.
 

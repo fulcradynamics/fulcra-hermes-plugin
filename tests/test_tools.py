@@ -42,19 +42,16 @@ class ToolTests(unittest.TestCase):
             result = self.tools.fulcra_data_catalog({})
         self.assertIn('outcome uncertain', result)
         self.assertNotIn('private-token', result)
-        with patch.object(self.tools, 'auth_finish', side_effect=ValueError('private-code')):
-            self.assertNotIn('private-code', self.tools.fulcra_auth_device({'device_code': 'private-code'}))
 
     def test_signed_out_tools_explain_how_to_sign_in(self):
         client = importlib.import_module('fulcra_plugin.client')
-        with tempfile.TemporaryDirectory() as root, \
-                patch.object(client, 'credential_path', return_value=Path(root) / 'credentials.json'), \
+        with patch.object(client.Client, 'fulcra_api', side_effect=client.AuthenticationRequired('x')), \
                 patch.object(client.Client, '_open') as request:
             for name, args in (('fulcra_data_catalog', {}), ('fulcra_file_list', {}),
                                ('fulcra_record', {'data_type': 'Steps', 'records': [{}]})):
                 result = getattr(self.tools, name)(args)
                 self.assertIn('not signed in', result)
-                self.assertIn('fulcra_auth_device', result)
+                self.assertIn('hermes auth add fulcra:fulcra', result)
             request.assert_not_called()
 
     def test_delete_share_ends_outgoing_shares_or_leaves_incoming_grants(self):

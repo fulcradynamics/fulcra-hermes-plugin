@@ -8,7 +8,7 @@ from pathlib import Path
 from urllib.error import HTTPError
 from uuid import uuid4
 
-from .client import AuthenticationRequired, client, auth_start, auth_finish
+from .client import SIGN_IN, AuthenticationRequired, client
 from ._vendor.fulcra_api.connections import CHANNEL_FIELDS, resolve_connection
 from ._vendor.fulcra_api.data_type_management import archive_data_type, create_data_type, restore_data_type
 from ._vendor.fulcra_api.records import get_records
@@ -41,8 +41,8 @@ def _enum(*values):
 def error_text(exc):
     # Never interpolate network errors, bodies, URLs, credentials or payloads.
     if isinstance(exc, AuthenticationRequired):
-        return ('Error: You are not signed in to Fulcra. Call fulcra_auth, share verification_uri '
-                'and user_code with the user, then call fulcra_auth_device after they approve. '
+        return (f'Error: You are not signed in to Fulcra. Ask the user to run `{SIGN_IN}` in a terminal on the '
+                'machine running Hermes (it opens a browser sign-in), then try again. Never ask for a password. '
                 'Verify any earlier writes before retrying them.')
     if isinstance(exc, HTTPError):
         return f'Error: Fulcra HTTP {exc.code}; writes may have completed. Verify before retrying.'
@@ -114,16 +114,6 @@ def record(api, data_type, rows, api_version=None, *, deletion=False):
     if errors := api.validate_records('DeletedRecord' if deletion else entry['id'], rows, entry['api_version']):
         raise LocalError(f'Record {errors[0][0] + 1} does not match the catalog schema.')
     return api.record_data_type('DeletedRecord' if deletion else record_type, rows, entry['api_version'])
-
-
-@_tool('fulcra_auth', 'Start browser sign-in. Show the user only verification_uri and user_code. Credentials are shared by every Hermes profile of this OS user.', {})
-def fulcra_auth(args):
-    return auth_start()
-
-
-@_tool('fulcra_auth_device', 'After the user approves in the browser, exchange device_code once. If pending, wait retry_after seconds before calling again.', {'device_code': STRING}, ('device_code',))
-def fulcra_auth_device(args):
-    return auth_finish(args['device_code'])
 
 
 @_tool('fulcra_user_info', 'Read your Fulcra user ID and name. Names and email addresses are not routing IDs.', {})
