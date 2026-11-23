@@ -110,9 +110,9 @@
   "app": {
     "description": "The Agents I Know MCP App, as the Fulcra MCP server offers it (global view)",
     "repository": "https://github.com/fulcradynamics/fulcra-context-mcp",
-    "commit": "39287bc6c3032e7fc7eeb92920a8220bbd9c2832",
+    "commit": "bba42ae8d3f9e7044d6245f99d6defed7e417552",
     "source": "fulcra_mcp/ui/contacts/v86.html",
     "file": "desktop/agents-i-know.html",
-    "sha256": "79365b6a1d30e35718a7f4249ec634710cd06e8ab5db2b66ff9c620e2efc6836"
+    "sha256": "d3aacaea30ee5d4a3c93fd75d8db80226a8e282f1ceb6e766ce9a6ef326ee088"
   }
 }
