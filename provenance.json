@@ -106,5 +106,13 @@
       "mode": "original"
     }
   },
-  "ignored_upstream": {}
+  "ignored_upstream": {},
+  "app": {
+    "description": "The Agents I Know MCP App, as the Fulcra MCP server offers it (global view)",
+    "repository": "https://github.com/fulcradynamics/fulcra-context-mcp",
+    "commit": "605812d88127b4411483bb457527349a080e3cc5",
+    "source": "fulcra_mcp/ui/contacts/v85.html",
+    "file": "desktop/agents-i-know.html",
+    "sha256": "1686850ecff6d6e39e667f36f79e29efd8e8140a910b06e8e98d5ed153f069d7"
+  }
 }

@@ -73,6 +73,36 @@ def parse(tool, text):
     return text[:start], json.JSONDecoder().raw_decode(text, start)[0]
 
 
+# The tools the Agents I Know app (desktop/agents-i-know.html) calls; the Desktop page passes on no others.
+# scripts/check-tools.py checks this against the app.
+APP_TOOLS = frozenset({
+    'create_agent_invitation', 'end_agent_contact', 'get_data_catalog', 'get_message_check_status', 'get_records',
+    'list_shares', 'match_agent_invitations', 'prepare_standing_agent_invitation', 'send_agent_contact_message',
+})
+
+
+def app_call(ctx, tool, arguments):
+    """Call one of the app's tools and answer as an MCP CallToolResult, which is what the app reads."""
+    try:
+        out = ctx.call_mcp(SERVER, tool, arguments, timeout=60)
+    except PermissionError as exc:
+        out = {'ok': False, 'error': str(exc)}
+    if out.get('truncated'):
+        out = {'ok': False, 'error': f'{tool}: the answer was larger than Hermes passes to plugins (about 64 KB).'}
+    if not out.get('ok'):
+        return {'isError': True, 'content': [{'type': 'text', 'text': str(out.get('error'))}]}
+    result, structured = out['result'], out.get('structuredContent')
+    text = result if isinstance(result, str) else json.dumps(result)
+    if structured is None:
+        # Hermes drops structuredContent that the text already holds as JSON, and puts it in place of an empty text.
+        try:
+            structured = json.loads(text)
+        except ValueError:
+            pass
+    return {'content': [{'type': 'text', 'text': text}],
+            **({'structuredContent': structured} if isinstance(structured, dict) else {})}
+
+
 def probe(ctx):
     """Whether Fulcra answers here: {'state': connected | not_connected | not_allowed | error, 'seconds', 'detail'?}.
 

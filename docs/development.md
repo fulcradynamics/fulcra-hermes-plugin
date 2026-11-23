@@ -10,6 +10,7 @@ Against a fulcra-context-mcp checkout:
 
     scripts/check-tools.py /path/to/fulcra-context-mcp    # skills call only offered, non-panel tools
     scripts/check-upstream.py /path/to/claude-plugin      # skills vs the Claude plugin they're adapted from
+    scripts/update-app.py /path/to/fulcra-context-mcp     # copy its current Agents I Know app into desktop/
 
 ## How it fits together
 
@@ -19,19 +20,16 @@ Fulcra's tools come from the hosted Fulcra MCP server. The user adds it with `he
 - `whats_new.py`: the what's-new hooks. A due check runs in a background thread after a reply and its findings go into the next turn.
 - `messages.py`: which shares are contact channels and which records are messages for this agent (validated against `skills/connect-our-agents/references/channel-fields.json`).
 - `commands.py`: `/fulcra` and `hermes fulcra` (`connect` prints the setup commands still needed, `status`, `setup`). No subprocesses and no config writes.
-- `dashboard/plugin_api.py`: backend routes for the Desktop page (`/status` with the commands still needed, `/ping`), through the plugin's own `ctx`. Hermes connects MCP servers when a session starts, so Fulcra answers once any chat has started in that backend. A call to a server that isn't connected counts against Hermes's circuit breaker for it, so the page pings only on request.
-- `desktop/plugin.js`: the **Agents I Know** page (status, the commands to copy, a ping) and the `::fulcra-agents-i-know` transcript directive. It doesn't sign in or change config; Desktop's own **Capabilities > MCP servers** does that.
+- `dashboard/plugin_api.py`: backend routes for the Desktop page, through the plugin's own `ctx`: `/status` (the commands still needed), `/ping`, `/app` (the app's HTML) and `/call` (the app's tool calls, only those in `mcp_api.APP_TOOLS`).
+- `desktop/plugin.js`: the **Agents I Know** page and the `::fulcra-agents-i-know` transcript directive. Until Fulcra is added, granted and answering, the page shows what's missing; it doesn't sign in or change config (Desktop's **Capabilities > MCP servers** does). Then it runs the Agents I Know app in Desktop's `SandboxedFrame` as its MCP Apps host: tool calls go to `/call`, links open in the browser, a message for chat starts a new Hermes chat (followed by the context the app gave for the model), and the theme follows Desktop's. One ping comes first, because calls to a server Hermes hasn't connected count against its circuit breaker.
+- `desktop/agents-i-know.html`: the app the Fulcra MCP server offers MCP Apps hosts, copied by `scripts/update-app.py` at the commit in `provenance.json`, so the plugin never loads code from elsewhere. `scripts/check-tools.py` checks `APP_TOOLS` against it.
 - `skills/`: adapted from the Claude Fulcra plugin; `provenance.json` records each source.
 
 Registration has no network access, writes or background work.
 
 A Hermes that is already running when the server is added connects it on its own: a gateway re-reads `config.yaml` within about a minute, and a server added before sign-in waits for its next retry (30 s, doubling up to 10 minutes). `/reload-mcp` in a chat connects it at once.
 
-## Live checks
-
-`scripts/desktop_backend_check.py` drives a `hermes serve` backend the way the Desktop page does (status, then a ping before and after a session).
-
-### Testing in Hermes Desktop
+## Testing in Hermes Desktop
 
 Build Desktop from a Hermes checkout at the version of your installed `hermes` (its `package.json` `engines` names the Node and pnpm versions), then run it against a test home so your own Hermes is untouched:
 
@@ -46,7 +44,7 @@ In Desktop, turn on the plugin's **Desktop** part (Capabilities > Plugins > Fulc
 
 1. Not added: both commands, each with Copy.
 2. After `hermes mcp add` and sign-in: added, with only the `mcp_allowlist` command left.
-3. After the grant: added, with Ping. Before any chat it reports not connected; after a chat ("show my Fulcra agent contacts") it answers.
+3. After the grant: the Agents I Know app, once Fulcra answers. Invite someone, reply in a conversation, and use **Continue in Hermes** (it opens a new chat with the request).
 
 ## Acceptance
 

@@ -4,7 +4,8 @@
 Lists the tools a fulcra-context-mcp checkout offers on /mcp (the endpoint the
 user adds to Hermes) and compares them with every `tool_name(` call written in
 the skills. Also refuses calls to tools only MCP App panels use, which Hermes
-can't display.
+can't display, and checks the Desktop page passes on exactly the tools the
+Agents I Know app (desktop/agents-i-know.html) calls.
 
     scripts/check-tools.py <fulcra-context-mcp checkout>
 
@@ -21,6 +22,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SKILLS = ROOT / "skills"
+APP = ROOT / "desktop" / "agents-i-know.html"
+sys.path.insert(0, str(ROOT))
+from mcp_api import APP_TOOLS  # noqa: E402
 
 # Tools a skill calls only if offered, with the alternative it falls back to.
 OPTIONAL: dict[str, str] = {
@@ -83,6 +87,11 @@ def main() -> int:
         if tools.get(name) and name not in NOT_CALLED:
             print(f"PANEL-ONLY: {name} in {', '.join(sorted(set(where)))}")
             missing += 1
+    # The app is minified: a tool name it calls appears as a string literal.
+    in_app = {name for name in tools if re.search(rf"['\"]{name}['\"]", APP.read_text())}
+    for name in sorted(in_app ^ APP_TOOLS):
+        print(f"APP_TOOLS: {name} is {'called by the app but not' if name in in_app else 'not called by the app but'} listed")
+        missing += 1
     print(f"/mcp: {len(tools)} tools offered; {missing} problems")
     return 1 if missing else 0
 

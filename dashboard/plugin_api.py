@@ -2,14 +2,16 @@
 
 Reads this profile's config and reaches Fulcra only through the plugin's ctx.call_mcp, on the MCP connection
 and sign-in Hermes made. Never changes config or handles credentials: the page shows the Hermes commands
-still needed.
+still needed. Once Fulcra answers, the page runs the Agents I Know app and passes its tool calls here.
 """
 import asyncio
 import sys
+from pathlib import Path
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Body, HTTPException
 
 router = APIRouter()
+APP = Path(__file__).resolve().parent.parent / 'desktop' / 'agents-i-know.html'
 
 
 def _plugin():
@@ -35,3 +37,16 @@ async def ping():
     if not mcp_api.configured():
         return {'state': 'not_configured'}
     return await asyncio.to_thread(mcp_api.probe, mcp_api._FULCRA_CTX)
+
+
+@router.get('/app')
+async def app():
+    return {'html': APP.read_text(encoding='utf-8')}
+
+
+@router.post('/call')
+async def call(name: str = Body(), arguments: dict = Body(default_factory=dict)):
+    mcp_api = _plugin()
+    if name not in mcp_api.APP_TOOLS:
+        raise HTTPException(403, f'Agents I Know does not call {name}.')
+    return await asyncio.to_thread(mcp_api.app_call, mcp_api._FULCRA_CTX, name, arguments)

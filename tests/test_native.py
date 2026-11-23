@@ -1,7 +1,9 @@
 """Runtime boundaries: no credentials, no heavy imports, processes only for the user's own sign-in."""
 import ast
 import asyncio
+import hashlib
 import importlib.util
+import json
 import sys
 import unittest
 from unittest.mock import patch
@@ -57,6 +59,30 @@ class DashboardTests(unittest.TestCase):
         self.ctx.allowed = False
         self.assertEqual(self.run_async(self.api.ping())['state'], 'not_allowed')
         self.assertFalse(hasattr(self.api, 'connect'))
+
+    def test_the_app_and_its_tool_calls(self):
+        provenance = json.loads((ROOT / 'provenance.json').read_text())['app']
+        html = self.run_async(self.api.app())['html']
+        self.assertEqual(hashlib.sha256(html.encode()).hexdigest(), provenance['sha256'])
+        self.config.data = {'plugins': {'entries': {'fulcra': {'mcp_allowlist': ['fulcra']}}}}
+        call = lambda name, **args: self.run_async(self.api.call(name, args))
+
+        shares = call('list_shares', direction='both')  # Text the app parses.
+        self.assertEqual(shares['content'][0]['text'][:8], 'Shares: ')
+        self.assertNotIn('structuredContent', shares)
+        self.ctx.fulcra.answer = lambda tool, args: {'result': json.dumps({'status': 'prepared'})}
+        # Hermes drops structuredContent the text repeats as JSON; the app reads structuredContent.
+        self.assertEqual(call('prepare_standing_agent_invitation')['structuredContent'], {'status': 'prepared'})
+        self.ctx.fulcra.answer = lambda tool, args: {'result': 'x' * 70000}
+        self.assertIn('64 KB', call('get_records')['content'][0]['text'])
+        self.ctx.fulcra = None
+        self.assertEqual(call('get_records'), {'isError': True, 'content': [
+            {'type': 'text', 'text': "MCP server 'fulcra' is not connected"}]})
+
+        from fastapi import HTTPException
+        with self.assertRaises(HTTPException) as caught:
+            call('delete_records')  # Not one the app calls.
+        self.assertEqual(caught.exception.status_code, 403)
 
     def test_unloaded_plugin_is_a_clear_error(self):
         from fastapi import HTTPException

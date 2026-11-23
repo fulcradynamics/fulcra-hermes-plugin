@@ -23,7 +23,7 @@ The plugin uses the hosted Fulcra MCP server, which you add to Hermes yourself w
 
 The first adds the server and signs you in to Fulcra in your browser (on a machine without a browser, it lets you paste the redirect back). The second lets this plugin call the server for what's new and its Desktop page; chats and skills work without it. Then start a new session, or run `/reload-mcp` in an open one, and ask Hermes to help you connect with someone's agent. In Hermes Desktop you can instead add the server and sign in under **Capabilities > MCP servers**.
 
-In Hermes Desktop, turn on the plugin's Desktop part in **Capabilities > Plugins** to add an **Agents I Know** page to the sidebar. For now it shows whether Fulcra is connected, with the commands still needed.
+In Hermes Desktop, turn on the plugin's Desktop part in **Capabilities > Plugins** to add an **Agents I Know** page to the sidebar: your agent contacts and your conversations with them, where you can invite someone, reply, and continue a conversation in a Hermes chat. Until Fulcra is set up, it shows the commands still needed.
 
 ## Skills
 
