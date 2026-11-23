@@ -22,7 +22,11 @@ const muted = children => jsx('div', { className: 'text-(--ui-text-tertiary)', c
 function Line({ tone, children }) {
   return jsxs('div', {
     className: 'flex items-start gap-2',
-    children: [jsx(StatusDot, { tone }), jsx('div', { className: 'flex flex-col gap-1', children })]
+    // The dot sits in a box one text line tall, so it centers on the first line.
+    children: [
+      jsx('span', { className: 'flex h-5 shrink-0 items-center', children: jsx(StatusDot, { tone }) }),
+      jsx('div', { className: 'flex flex-col gap-1', children })
+    ]
   })
 }
 

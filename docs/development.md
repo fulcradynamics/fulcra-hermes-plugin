@@ -31,6 +31,23 @@ A Hermes that is already running when the server is added connects it on its own
 
 `scripts/desktop_backend_check.py` drives a `hermes serve` backend the way the Desktop page does (status, then a ping before and after a session).
 
+### Testing in Hermes Desktop
+
+Build Desktop from a Hermes checkout at the version of your installed `hermes` (its `package.json` `engines` names the Node and pnpm versions), then run it against a test home so your own Hermes is untouched:
+
+    cd <hermes>/apps/desktop && pnpm install --frozen-lockfile && pnpm run build
+    T=/path/to/test-dir; mkdir -p $T/hermes
+    HERMES_HOME=$T/hermes HOME=$T/home hermes plugins install fulcradynamics/fulcra-hermes-plugin --ref <commit> --enable
+    scripts/run-desktop.sh <hermes> $T
+
+Put model credentials in `$T/hermes/.env`, without messaging tokens, so the test Hermes can't join your chat channels. On a machine without a display, run it under a virtual one (e.g. `xvfb-run`) with `--no-sandbox --disable-gpu`; `--remote-debugging-port=<port>` lets Playwright attach (`chromium.connectOverCDP`).
+
+In Desktop, turn on the plugin's **Desktop** part (Capabilities > Plugins > Fulcra); **Agents I Know** appears in the sidebar. Check each state, running the commands it shows with `HERMES_HOME=$T/hermes HOME=$T/home`:
+
+1. Not added: both commands, each with Copy.
+2. After `hermes mcp add` and sign-in: added, with only the `mcp_allowlist` command left.
+3. After the grant: added, with Ping. Before any chat it reports not connected; after a chat ("show my Fulcra agent contacts") it answers.
+
 ## Acceptance
 
 `tests/acceptance/` holds end-to-end scenarios: a real Hermes with the plugin installed, driven turn by turn against test accounts, with a tester playing the user and the contact.
