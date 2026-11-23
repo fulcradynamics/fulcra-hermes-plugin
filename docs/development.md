@@ -40,7 +40,7 @@ Build Desktop from a Hermes checkout at the version of your installed `hermes` (
 
 Put model credentials in `$T/hermes/.env`, without messaging tokens, so the test Hermes can't join your chat channels. On a machine without a display, run it under a virtual one (e.g. `xvfb-run`) with `--no-sandbox --disable-gpu`; `--remote-debugging-port=<port>` lets Playwright attach (`chromium.connectOverCDP`).
 
-In Desktop, turn on the plugin's **Desktop** part (Capabilities > Plugins > Fulcra); **Agents I Know** appears in the sidebar. Check each state, running the commands it shows with `HERMES_HOME=$T/hermes HOME=$T/home`:
+In Desktop, turn on the plugin's **Desktop** part (Capabilities > Plugins > Fulcra); **Agents I Know** appears in the sidebar. Desktop's **Install from Git** reviews the repository's default branch even when you pin a commit, so a commit whose Desktop part isn't on that branch installs as agent-only and its Desktop switch shows "copying…"; **Rescan** (on the Plugins toolbar) copies it in. Check each state, running the commands it shows with `HERMES_HOME=$T/hermes HOME=$T/home`:
 
 1. Not added: both commands, each with Copy.
 2. After `hermes mcp add` and sign-in: added, with only the `mcp_allowlist` command left.
