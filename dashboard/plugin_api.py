@@ -12,6 +12,9 @@ from fastapi import APIRouter, Body, HTTPException
 
 router = APIRouter()
 APP = Path(__file__).resolve().parent.parent / 'desktop' / 'agents-i-know.html'
+# Raised with any change to these routes. Hermes keeps a running backend's routes when the plugin is
+# reinstalled or updated, so the page compares this to tell the user to restart Hermes.
+API_VERSION = 2
 
 
 def _plugin():
@@ -26,7 +29,7 @@ def _plugin():
 async def status():
     mcp_api = _plugin()
     plugin_id = mcp_api._FULCRA_CTX.plugin_id
-    return {'server': mcp_api.SERVER, 'url': mcp_api.configured(), 'allowed': mcp_api.allowed(plugin_id),
+    return {'api': API_VERSION, 'server': mcp_api.SERVER, 'url': mcp_api.configured(), 'allowed': mcp_api.allowed(plugin_id),
             'commands': [{'purpose': purpose, 'command': command}
                          for purpose, command in mcp_api.setup_commands(plugin_id)]}
 

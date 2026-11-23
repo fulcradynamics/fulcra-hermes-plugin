@@ -34,6 +34,7 @@ class MessagingTests(unittest.TestCase):
         self.assertIsNotNone(messages._message({**row, 'recipients': ['helper']}, 'helper'))
         self.assertIsNotNone(messages._message({**row, 'recipients': ['all']}, 'helper'))
         self.assertIsNone(messages._message({**row, 'recipients': ['other']}, 'helper'))
+        self.assertIsNotNone(messages._message({**row, 'recipients': ['other']}, ''))  # No name: kept
 
     def test_timestamps_need_a_time_zone(self):
         self.assertEqual(messages.timestamp('2026-11-21T10:00:00Z').utcoffset().total_seconds(), 0)

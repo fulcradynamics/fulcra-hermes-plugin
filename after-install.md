@@ -14,6 +14,6 @@ The plugin uses the hosted Fulcra MCP server, which you add to Hermes with Herme
 
 `/fulcra connect` shows whichever of these you still need. In Hermes Desktop you can add the server and sign in under **Capabilities > MCP servers** instead.
 
-What's new is off until you turn it on: `/fulcra setup --whats-new on --agent-name NAME`. See `/fulcra --help`.
+What's new is off until you turn it on: `/fulcra setup --whats-new on`. See `/fulcra --help`.
 
 [README](https://github.com/fulcradynamics/fulcra-hermes-plugin#readme)

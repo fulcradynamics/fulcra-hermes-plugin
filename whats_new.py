@@ -24,7 +24,7 @@ SETTINGS = {
     'whats-new': {'type': 'boolean', 'default': False,
                   'description': 'Notice new messages, contact requests and data/file changes in trusted chats.'},
     'agent-name': {'type': 'string', 'default': '',
-                   'description': "Your agent's stable name; messages for other agents are skipped."},
+                   'description': "Your agent's sender name, to skip messages addressed to other agents. Optional."},
     'interval': {'type': 'integer', 'minimum': 60, 'maximum': 86400, 'default': 900,
                  'description': 'Minimum seconds between checks. Checks start after a reply, never while idle.'},
     'data-types': {**LIST, 'description': 'Data type IDs to report; empty means all.'},
@@ -62,8 +62,6 @@ def validate(values):
                  'array': isinstance(value, list) and all(isinstance(v, str) and v for v in value)}[spec['type']]
         if not valid:
             raise ValueError('Invalid setting: ' + key)
-    if values['whats-new'] and not values['agent-name'].strip():
-        raise ValueError("Set --agent-name to your agent's name before turning on --whats-new")
 
 
 def _state(ctx, values, now):
@@ -120,7 +118,8 @@ def check(api, state, values, now):
     received = messages.receive(api, own, pairs, values['agent-name'], state['cursors'],
                                 messages.timestamp(state['started']))
     items += [{'kind': 'message', 'owner': m['owner'], 'channel': m['channel'], 'id': m['id'],
-               'sender': m['sender'], 'priority': m.get('priority', 'P2'), 'preview': m['body'][:120]}
+               'sender': m['sender'], 'priority': m.get('priority', 'P2'), 'preview': m['body'][:120],
+               **({'recipients': m['recipients']} if 'recipients' in m else {})}
               for m in received['messages']]
     state.update(files=state['files'][-512:], requests=state['requests'][-512:])
     return items

@@ -11,7 +11,7 @@ from . import mcp_api, whats_new
 
 USAGE = '''/fulcra connect [--url URL]   show the Hermes commands that connect Fulcra
 /fulcra status                 show the connection and what's new settings
-/fulcra setup [options]        change what's new settings, e.g. --whats-new on --agent-name NAME'''
+/fulcra setup [options]        change what's new settings, e.g. --whats-new on'''
 RELOAD = ('After signing in, start a new chat, or run /reload-mcp in an open one. A running gateway or Desktop '
           'may need a restart to pick up the sign-in.')
 DESKTOP = 'In Hermes Desktop you can instead add the server and sign in under Capabilities > MCP servers.'
@@ -116,7 +116,7 @@ class Commands:
         lines += ["What's new (this profile; trusted chats only):"]
         lines += [f'  {key} = {json.dumps(self.ctx.get_config(key, spec["default"]))}'
                   for key, spec in whats_new.SETTINGS.items()]
-        lines.append('Change with /fulcra setup --whats-new on --agent-name NAME; see /fulcra --help.')
+        lines.append('Change with /fulcra setup --whats-new on; see /fulcra --help.')
         return '\n'.join(lines)
 
     def answering(self):

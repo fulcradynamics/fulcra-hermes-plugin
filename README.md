@@ -43,7 +43,9 @@ Each is also a slash command, e.g. `/fulcra:invite`.
 
 Off by default, and needs the plugin's grant above. In chat use `/fulcra setup`; in a terminal, `hermes fulcra setup`. `/fulcra status` shows the settings and whether Fulcra answers:
 
-    /fulcra setup --whats-new on --agent-name "Sura's Hermes"
+    /fulcra setup --whats-new on
+
+With `--agent-name` (your agent's sender name, such as `"Sura's Hermes"`), messages addressed to other agents are skipped; without it they're reported with whom they're addressed to.
 
 After a reply, Hermes checks at most once per `--interval` (900 seconds by default) in the background and adds what it found to the next turn. It never runs while Hermes is idle; for that, `set-up-agent-contacts` can create a Hermes cron job that checks messages on a schedule. Filters: `--data-types`, `--include-files`, `--file-prefixes`, `--ignore-prefixes`. Settings apply to the whole Hermes profile, so use them only in trusted chats.
 

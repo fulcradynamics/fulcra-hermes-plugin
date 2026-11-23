@@ -52,7 +52,8 @@ def _message(row, agent):
     fields = {k: v for k, v in row.items() if k in FIELDS['properties'] and v is not None}
     if not valid(fields, FIELDS):
         return None
-    if 'recipients' in fields and not {agent, 'all'} & set(fields['recipients']):
+    # Without an agent name, messages addressed to particular agents are kept; the notice shows to whom.
+    if agent.strip() and 'recipients' in fields and not {agent, 'all'} & set(fields['recipients']):
         return None
     return {**fields, 'id': row['id'], 'start_time': row.get('start_time')}
 

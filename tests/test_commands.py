@@ -63,7 +63,7 @@ class CommandTests(unittest.TestCase):
         self.assertIn('answered with an error', self.chat('status'))
 
     def test_settings_imply_setup_and_are_validated(self):
-        self.assertTrue(self.chat('--whats-new on').startswith('Error:'))
+        self.assertIn('whats-new = true', self.chat('--whats-new on'))  # No agent name needed.
         status = self.chat('--whats-new on --agent-name helper --interval 120')
         self.assertIn('whats-new = true', status)
         self.assertEqual(self.ctx.config, {'whats-new': True, 'agent-name': 'helper', 'interval': 120})
@@ -79,7 +79,7 @@ class CommandTests(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn('agent-name = "helper"', out)
         self.assertNotIn('Fulcra answers', out)  # The terminal has no MCP connection to test.
-        self.assertEqual(self.cli('setup', '--whats-new', 'on', '--agent-name', ' ')[0], 1)
+        self.assertEqual(self.cli('setup', '--interval', '5')[0], 1)
         self.assertEqual(self.config.data, {})
 
 

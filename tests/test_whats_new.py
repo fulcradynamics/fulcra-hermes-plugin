@@ -59,6 +59,17 @@ class WhatsNewTests(unittest.TestCase):
         self.assertIn('list_shares', [tool for tool, _ in self.fulcra.calls])
         self.assertEqual(self.ctx.state.values['whats-new']['pending'], [])
 
+    def test_without_an_agent_name_addressed_messages_arrive_with_their_recipients(self):
+        self.setup('agent-name', '')
+        self.turn()
+        self.fulcra.share_channel()
+        self.fulcra.post(CHANNEL, '00000000-0000-4000-8000-000000000001', sender='sura', kind='message',
+                         body='For someone', recipients=['other'])
+        self.due()
+        self.turn()
+        items = [json.loads(line) for line in self.turn()['context'].splitlines()[1:]]
+        self.assertIn(['other'], [item.get('recipients') for item in items if item['kind'] == 'message'])
+
     def test_notices_new_messages_contact_channels_and_changes_once(self):
         self.setup('ignore-prefixes', ['/private/'])
         self.turn()  # First check: existing channels and older changes are not new.

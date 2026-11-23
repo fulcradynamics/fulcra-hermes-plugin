@@ -48,6 +48,7 @@ class DashboardTests(unittest.TestCase):
     def test_status_and_ping(self):
         status = self.run_async(self.api.status())
         self.assertEqual((status['url'], status['allowed'], len(status['commands'])), (None, False, 2))
+        self.assertIn(f"const API_VERSION = {status['api']} ", (ROOT / 'desktop/plugin.js').read_text())
         self.assertEqual(self.run_async(self.api.ping()), {'state': 'not_configured'})
         self.config.data = {'mcp_servers': {'fulcra': {'url': 'https://mcp.fulcradynamics.com/mcp'}},
                             'plugins': {'entries': {'fulcra': {'mcp_allowlist': ['fulcra']}}}}

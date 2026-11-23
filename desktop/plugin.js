@@ -9,6 +9,7 @@ import { useEffect, useRef, useState } from 'react'
 import { jsx, jsxs } from 'react/jsx-runtime'
 
 const PATH = '/fulcra'
+const API_VERSION = 2 // dashboard/plugin_api.py's
 
 const message = error => String((error && error.message) || error || 'Unknown error')
 const muted = children => jsx('div', { className: 'text-(--ui-text-tertiary)', children })
@@ -75,6 +76,10 @@ function AgentsIKnowPage({ ctx }) {
   const refresh = async () => {
     try {
       const status = await ctx.rest('/status')
+      if (status.api !== API_VERSION) {
+        // Hermes keeps an earlier version's backend running after the plugin is reinstalled or updated.
+        return setError('Restart Hermes to finish installing this version of the Fulcra plugin.')
+      }
       setInfo(status)
       setError(null)
       if (status.url && status.allowed) check()
