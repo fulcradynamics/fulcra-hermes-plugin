@@ -47,6 +47,29 @@ def channels(shares, own):
     return found
 
 
+def outboxes(shares, own):
+    """Your own channels, by the contact they're shared with: each outgoing share of exactly one Event."""
+    found = {}
+    for share in shares:
+        types = share.get('data_types') or []
+        if (len(types) == 1 and re.fullmatch('Event/' + UUID, types[0]) and not share.get('file_paths')
+                and not share.get('file_history_paths') and share.get('share_all_data') is False):
+            for peer in share.get('with_user_ids') or []:
+                if peer != own and types[0] not in found.setdefault(peer, []):
+                    found[peer].append(types[0])
+    return found
+
+
+def _answered(api, own, outboxes, start, now):
+    """IDs your agent (in any client) has replied to or acknowledged on these channels of yours."""
+    ids = set()
+    for outbox in outboxes:
+        for row in api.records(outbox, start, now, own):
+            if row.get('kind') in ('reply', 'ack') and isinstance(row.get('in_reply_to'), str):
+                ids.add(row['in_reply_to'])
+    return ids
+
+
 def _message(row, agent):
     # The API reads unset fields back as null; treat them as absent.
     fields = {k: v for k, v in row.items() if k in FIELDS['properties'] and v is not None}
@@ -58,21 +81,35 @@ def _message(row, agent):
     return {**fields, 'id': row['id'], 'start_time': row.get('start_time')}
 
 
-def receive(api, own, pairs, agent, cursors, initial):
-    """New messages for agent on these channels since initial or their cursor; updates cursors in place."""
+def receive(api, own, pairs, agent, cursors, initial, outgoing=()):
+    """New messages for agent on these channels since initial or their cursor; updates cursors in place.
+
+    The user has read everything up to the latest message they replied to or acknowledged (in chat, the
+    Agents I Know panel or any other client), so those messages and anything older are left out; their IDs
+    come back in `read`, to drop from notices already waiting."""
     now = datetime.now(timezone.utc)
-    messages, skipped = [], 0
+    mine = outboxes(outgoing, own)
+    messages, read, skipped = [], [], 0
     for owner, channel in pairs:
         key = json.dumps([own, agent, owner, channel])
         previous = cursors.get(key, {})
         start = timestamp(previous['until']) - OVERLAP if previous else initial
         seen = list(previous.get('seen', []))
-        for row in api.records(channel, start, now, owner):
+        rows = api.records(channel, start, now, owner)
+        answered = _answered(api, own, mine.get(owner, []), start, now) if mine.get(owner) else set()
+        times = [timestamp(r['start_time']) for r in rows
+                 if r.get('id') in answered and isinstance(r.get('start_time'), str)]
+        read_through = max(times) if times else None
+        for row in rows:
             message = _message(row, agent)
             if message is None:
                 skipped += 1
+            elif read_through and isinstance(row.get('start_time'), str) and timestamp(row['start_time']) <= read_through:
+                read.append(message['id'])
+                if message['id'] not in seen:
+                    seen.append(message['id'])
             elif message['id'] not in seen:
                 seen.append(message['id'])
                 messages.append({'owner': owner, 'channel': channel, **message})
         cursors[key] = {'until': now.isoformat(), 'seen': seen[-SEEN_LIMIT:]}
-    return {'messages': messages, 'skipped_records': skipped}
+    return {'messages': messages, 'read': read, 'skipped_records': skipped}

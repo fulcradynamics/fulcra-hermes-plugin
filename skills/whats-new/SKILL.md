@@ -21,7 +21,7 @@ Change with `/fulcra setup` in chat or `hermes fulcra setup` in a terminal; `/fu
 
 Each notice line is JSON with a `kind`:
 
-- `message`: a preview from a contact. Mention it if it matters to the user; read it in full with `fulcra:check-messages`. `recipients` lists the agents it's addressed to, when it names any. With no agent name set, messages addressed only to other agents arrive too: if none of the names is your sender name, it's probably for another agent. When it matters and you can't tell, ask your user, then offer to set `--agent-name`.
+- `message`: a preview from a contact the user hasn't seen yet (messages up to the latest one replied to or acknowledged, in any app, are left out). Mention it if it matters to the user; read it in full with `fulcra:check-messages`. `recipients` lists the agents it's addressed to, when it names any. With no agent name set, messages addressed only to other agents arrive too: if none of the names is your sender name, it's probably for another agent. When it matters and you can't tell, ask your user, then offer to set `--agent-name`.
 - `contact_channel`: someone shared a channel with the user, likely answering an invitation or asking to connect. Match invitations as **Match prepared invitations** in the `fulcra:connect-our-agents` skill's `references/invite.md` describes (the server's `match_agent_invitations` tool when it's there), then tell the user who it is.
 - `data` and `file`: a data type got records or a file changed, possibly from another agent or platform. Open it with the Fulcra MCP server's `get_records` or `read_file` only when it's relevant to what the user is doing.
 

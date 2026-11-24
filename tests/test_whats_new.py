@@ -70,6 +70,40 @@ class WhatsNewTests(unittest.TestCase):
         items = [json.loads(line) for line in self.turn()['context'].splitlines()[1:]]
         self.assertIn(['other'], [item.get('recipients') for item in items if item['kind'] == 'message'])
 
+    def test_messages_up_to_the_last_one_the_user_answered_are_not_new(self):
+        outbox = 'Event/00000000-0000-4000-8000-0000000000d1'
+        ids = [f'00000000-0000-4000-8000-00000000001{i}' for i in range(4)]
+        at = lambda minutes: (datetime.now(timezone.utc) - timedelta(seconds=minutes * 6)).isoformat()
+        self.setup()
+        self.turn()
+        self.fulcra.share_channel()
+        self.fulcra.share_outbox(outbox=outbox)
+        for i, minutes in enumerate((4, 3, 2)):
+            self.fulcra.post(CHANNEL, ids[i], sender='sura', kind='message', body=f'm{i}', start_time=at(minutes))
+        # Read in the panel: it acknowledged the middle one, so the first two are read.
+        self.fulcra.post(outbox, ids[3], sender='helper', kind='ack', body='ack', in_reply_to=ids[1])
+        self.due()
+        self.turn()
+        items = [json.loads(line) for line in self.turn()['context'].splitlines()[1:]]
+        self.assertEqual([i['id'] for i in items if i['kind'] == 'message'], [ids[2]])
+
+    def test_a_waiting_notice_is_dropped_once_the_user_answers_it(self):
+        outbox = 'Event/00000000-0000-4000-8000-0000000000d1'
+        message, reply = '00000000-0000-4000-8000-000000000021', '00000000-0000-4000-8000-000000000022'
+        self.setup()
+        self.turn()
+        self.fulcra.share_channel()
+        self.fulcra.share_outbox(outbox=outbox)
+        self.fulcra.post(CHANNEL, message, sender='sura', kind='message', body='Dinner?')
+        self.due()
+        self.turn('other')  # This check queues the notice for the next turn.
+        self.assertEqual([i['id'] for i in self.ctx.state.values['whats-new']['pending'] if i['kind'] == 'message'],
+                         [message])
+        self.fulcra.post(outbox, reply, sender='helper', kind='reply', body='Pies', in_reply_to=message)
+        self.due()
+        self.ctx.hooks['post_llm_call'](session_id='other')  # The next check, before any turn shows it.
+        self.assertNotIn(message, [i.get('id') for i in self.ctx.state.values['whats-new']['pending']])
+
     def test_notices_new_messages_contact_channels_and_changes_once(self):
         self.setup('ignore-prefixes', ['/private/'])
         self.turn()  # First check: existing channels and older changes are not new.

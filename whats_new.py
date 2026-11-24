@@ -116,7 +116,8 @@ def check(api, state, values, now):
             state['requests'].append([owner, channel])
             items.append({'kind': 'contact_channel', 'owner': owner, 'channel': channel})
     received = messages.receive(api, own, pairs, values['agent-name'], state['cursors'],
-                                messages.timestamp(state['started']))
+                                messages.timestamp(state['started']), shares.get('outgoing') or [])
+    state['read'] = received['read']  # Not kept: _fetch drops these from notices already waiting.
     items += [{'kind': 'message', 'owner': m['owner'], 'channel': m['channel'], 'id': m['id'],
                'sender': m['sender'], 'priority': m.get('priority', 'P2'), 'preview': m['body'][:120],
                **({'recipients': m['recipients']} if 'recipients' in m else {})}
@@ -181,7 +182,9 @@ class WhatsNew:
                     state.update({k: snapshot[k] for k in ('account', 'cursor', 'files', 'requests', 'cursors')})
                     state['known'] = {k: v for k, v in state['known'].items() if v > now}
                     new = [i for i in items if _selected(i, state['settings'], state['known'], now)]
-                    state['pending'] = (state['pending'] + new)[-32:]
+                    read = set(snapshot.get('read', []))
+                    waiting = [i for i in state['pending'] if not (i['kind'] == 'message' and i['id'] in read)]
+                    state['pending'] = (waiting + new)[-32:]
                     self.ctx.state.set(STATE_KEY, state)
         except Exception as exc:
             # Only the failure's type: no API output or private metadata in logs. The next due turn retries.
