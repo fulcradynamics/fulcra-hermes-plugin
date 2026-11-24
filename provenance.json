@@ -116,11 +116,8 @@
     "sha256": "1fee842a28cb8d5ae27ee6e27a6b1f08c09afb139127584de0679521cb525f18"
   },
   "logo": {
-    "description": "Fulcra logo, cropped and centered on a transparent 2:1 banner (1200x600) for the README and the catalog entry's image",
-    "repository": "https://github.com/fulcradynamics/fulcra-openai-plugin",
-    "commit": "ae499395563b1ab9e7a6f2c8a3ffd6976194057f",
-    "source": "assets/icon.png",
+    "description": "assets/banner.png: Fulcra's 'Connect our agents' artwork (logo, two robot hands touching), supplied by Fulcra as a 1774x887 (2:1) PNG and scaled to 1200x600",
     "file": "assets/banner.png",
-    "sha256": "6be37d52a2f82d2e2ae4dab0b8d7e3a760f60aa32561804ad61293a4ea02e203"
+    "sha256": "d2085f7032612f6beae864db990d1d831cc6af54268c458d83d1c230278443e7"
   }
 }
