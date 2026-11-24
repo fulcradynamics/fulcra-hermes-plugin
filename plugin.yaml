@@ -9,6 +9,7 @@ author:
   url: https://fulcradynamics.com
 homepage: https://github.com/fulcradynamics/fulcra-hermes-plugin
 license: MIT
+requires_hermes: ">=0.21.5"
 tags:
   - fulcra
   - agents

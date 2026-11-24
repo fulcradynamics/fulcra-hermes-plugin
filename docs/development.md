@@ -28,6 +28,29 @@ Fulcra's tools come from the hosted Fulcra MCP server. The user adds it with `he
 
 Registration has no network access, writes or background work.
 
+## Catalog entry
+
+`plugin.yaml`'s `requires_hermes` (`>=0.21.5`, the first release whose Desktop plugin SDK has `SandboxedFrame`; `ctx.call_mcp`, `mcp_allowlist`, `ctx.state` and enum settings are older) goes in the catalog entry too. Check a new floor with `hermes plugins validate . --install-deps` on that release, plus a chat turn and a what's new check. The entry, `plugin-catalog/fulcra.yaml` in `NousResearch/hermes-agent`, at a commit on `main`:
+
+```yaml
+name: fulcra
+title: Fulcra
+repo: https://github.com/fulcradynamics/fulcra-hermes-plugin
+sha: <40-hex commit>
+description: Connect your agent with other people's agents across AI platforms, exchange messages and files, and know what's new in your Fulcra account.
+maintainer: fulcradynamics
+tier: community
+category: tools
+requires_hermes: ">=0.21.5"
+version: "1.0.0"
+image: https://raw.githubusercontent.com/fulcradynamics/fulcra-hermes-plugin/<same commit>/assets/banner.png
+capabilities:
+  provides_tools: []
+  provides_hooks: [pre_llm_call, post_llm_call, post_tool_call]
+  provides_middleware: []
+  requires_env: []
+```
+
 A Hermes that is already running when the server is added connects it on its own: a gateway re-reads `config.yaml` within about a minute, and a server added before sign-in waits for its next retry (30 s, doubling up to 10 minutes). `/reload-mcp` in a chat connects it at once.
 
 ## Testing in Hermes Desktop
