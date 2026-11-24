@@ -68,6 +68,7 @@ class Fulcra:
     def __init__(self, own=ALEX):
         self.own = own
         self.incoming = []  # list_shares incoming entries
+        self.outgoing = []  # list_shares outgoing entries
         self.rows = {}  # data type -> records (each with start_time)
         self.updates = {'data_types': {}, 'file_changes': []}
         self.calls = []
@@ -76,6 +77,11 @@ class Fulcra:
     def share_channel(self, owner=SURA, channel=CHANNEL):
         self.incoming.append({'grant_id': 'g-' + channel, 'sharing_fulcra_userid': owner, 'share_all_data': False,
                               'file_paths': [], 'file_history_paths': [], 'data_types': [channel]})
+
+    def share_outbox(self, peer=SURA, outbox=None):
+        """Your own channel to peer, shared with them."""
+        self.outgoing.append({'datashare_id': 's-' + outbox, 'share_all_data': False, 'file_paths': [],
+                              'file_history_paths': [], 'data_types': [outbox], 'with_user_ids': [peer]})
 
     def post(self, channel, record_id, **fields):
         row = {'id': record_id, 'start_time': datetime.now(timezone.utc).isoformat(), **fields}
@@ -89,7 +95,7 @@ class Fulcra:
         if tool == 'get_user_info':
             return {'result': json.dumps({'fulcra_userid': self.own})}
         if tool == 'list_shares':
-            return {'result': 'Shares: ' + json.dumps({'own_fulcra_userid': self.own, 'incoming': self.incoming})}
+            return {'result': 'Shares: ' + json.dumps({'own_fulcra_userid': self.own, 'outgoing': self.outgoing, 'incoming': self.incoming})}
         if tool == 'get_data_updates':
             return {'result': 'Updates: ' + json.dumps(self.updates)}
         if tool == 'get_records':

@@ -42,7 +42,7 @@ class MCPApi:
         return parse(tool, self.text(tool, **args))[1]
 
     def shares(self):
-        return self.call('list_shares', direction='incoming')
+        return self.call('list_shares', direction='both')
 
     def data_updates(self, start, end):
         return self.call('get_data_updates', start_time=start.isoformat(), end_time=end.isoformat())
