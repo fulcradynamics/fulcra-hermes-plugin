@@ -114,5 +114,13 @@
     "source": "fulcra_mcp/ui/contacts/v86.html",
     "file": "desktop/agents-i-know.html",
     "sha256": "d3aacaea30ee5d4a3c93fd75d8db80226a8e282f1ceb6e766ce9a6ef326ee088"
+  },
+  "logo": {
+    "description": "Fulcra logo, cropped and centered on a transparent 2:1 banner (1200x600) for the README and the catalog entry's image",
+    "repository": "https://github.com/fulcradynamics/fulcra-openai-plugin",
+    "commit": "ae499395563b1ab9e7a6f2c8a3ffd6976194057f",
+    "source": "assets/icon.png",
+    "file": "assets/banner.png",
+    "sha256": "6be37d52a2f82d2e2ae4dab0b8d7e3a760f60aa32561804ad61293a4ea02e203"
   }
 }
