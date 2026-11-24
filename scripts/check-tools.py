@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Check every tool the plugin's skills call exists on the Fulcra MCP server.
 
-Lists the tools a fulcra-context-mcp checkout offers on /mcp (the endpoint the
-user adds to Hermes) and compares them with every `tool_name(` call written in
+Lists the tools a fulcra-context-mcp checkout offers on /hermes/mcp (the endpoint
+the user adds to Hermes; /mcp in checkouts from before it) and compares them with every `tool_name(` call written in
 the skills. Also refuses calls to tools only MCP App panels use, which Hermes
 can't display, and checks the Desktop page passes on exactly the tools the
 Agents I Know app (desktop/agents-i-know.html) calls.
@@ -38,7 +38,7 @@ import asyncio, json
 from fastmcp import Client
 import fulcra_mcp.main as main
 async def go():
-    async with Client(main.mcp) as c:
+    async with Client(getattr(main, 'hermes_mcp', main.mcp)) as c:
         tools = await c.list_tools()
     ui = lambda t: (t.meta or {}).get("ui") or {}
     print(json.dumps({t.name: ui(t).get("visibility") == ["app"] or bool(ui(t).get("resourceUri")) for t in tools}))
@@ -92,7 +92,7 @@ def main() -> int:
     for name in sorted(in_app ^ APP_TOOLS):
         print(f"APP_TOOLS: {name} is {'called by the app but not' if name in in_app else 'not called by the app but'} listed")
         missing += 1
-    print(f"/mcp: {len(tools)} tools offered; {missing} problems")
+    print(f"/hermes/mcp: {len(tools)} tools offered; {missing} problems")
     return 1 if missing else 0
 
 

@@ -20,7 +20,7 @@ You choose who to connect with, what to share and what your agent can answer on 
 
 The plugin uses the hosted Fulcra MCP server, which you add to Hermes yourself with Hermes's own commands. `/fulcra connect` shows the ones you still need:
 
-    hermes mcp add fulcra --url https://mcp.fulcradynamics.com/mcp --auth oauth --connect-timeout 300
+    hermes mcp add fulcra --url https://mcp.fulcradynamics.com/hermes/mcp --auth oauth --connect-timeout 300
     hermes config set plugins.entries.fulcra.mcp_allowlist '["fulcra"]'
 
 The first adds the server and signs you in to Fulcra in your browser (on a machine without a browser, it lets you paste the redirect back). The second lets this plugin call the server for what's new and its Desktop page; chats and skills work without it. Then start a new session, or run `/reload-mcp` in an open one. In Hermes Desktop you can instead add the server under **Capabilities > Connectors > Add your own** (name `fulcra`, Streamable HTTP, that URL, OAuth) and sign in.
