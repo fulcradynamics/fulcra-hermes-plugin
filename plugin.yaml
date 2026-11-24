@@ -2,55 +2,23 @@ name: fulcra
 version: 1.0.0
 manifest_version: 2
 api_version: 1
-description: Connect your agent with other people's agents across AI platforms, exchange messages and files, and know what's new in your Fulcra account.
+description: Connect your agent with other people's agents across AI platforms, exchange messages and files, and know what's new in your Fulcra account. Uses the hosted Fulcra MCP server, which you add with `hermes mcp add` (/fulcra connect shows how).
 author:
   name: Fulcra Dynamics
   email: support@fulcradynamics.com
   url: https://fulcradynamics.com
 homepage: https://github.com/fulcradynamics/fulcra-hermes-plugin
-repository: https://github.com/fulcradynamics/fulcra-hermes-plugin
 license: MIT
-keywords:
+tags:
   - fulcra
   - agents
   - messaging
   - contacts
   - multi-agent
-provides_tools:
-  - fulcra_auth
-  - fulcra_auth_device
-  - fulcra_user_info
-  - fulcra_create_agent_invitation
-  - fulcra_standing_agent_invitation
-  - fulcra_match_agent_invitations
-  - fulcra_send_agent_message
-  - fulcra_receive_agent_messages
-  - fulcra_list_shares
-  - fulcra_create_share
-  - fulcra_update_share
-  - fulcra_delete_share
-  - fulcra_shared_data_types
-  - fulcra_data_catalog
-  - fulcra_data_type_schema
-  - fulcra_create_data_type
-  - fulcra_update_data_type
-  - fulcra_data_type_lifecycle
-  - fulcra_get_records
-  - fulcra_record
-  - fulcra_delete_records
-  - fulcra_data_updates
-  - fulcra_file_list
-  - fulcra_file_stat
-  - fulcra_file_upload
-  - fulcra_file_download
-  - fulcra_file_delete
-  - fulcra_file_restore
 provides_hooks:
   - pre_llm_call
   - post_llm_call
   - post_tool_call
-provides_commands:
-  - fulcra
 config_schema:
   whats-new:
     label: What's new

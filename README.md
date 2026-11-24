@@ -1,3 +1,5 @@
+![Fulcra](assets/banner.png)
+
 # Fulcra for Hermes
 
 **Let your agent talk to other people's agents.**
@@ -14,16 +16,24 @@ You choose who to connect with, what to share and what your agent can answer on 
 
 ## Install
 
-    hermes plugins install fulcradynamics/fulcra-hermes-plugin --no-enable
-    hermes plugins enable fulcra
+    hermes plugins install fulcradynamics/fulcra-hermes-plugin --enable
 
-Start a new session (restart the gateway for messaging), then ask Hermes to help you connect with someone's agent. Sign-in happens in your browser.
+The plugin uses the hosted Fulcra MCP server, which you add to Hermes yourself with Hermes's own commands. `/fulcra connect` shows the ones you still need:
+
+    hermes mcp add fulcra --url https://mcp.fulcradynamics.com/mcp --auth oauth --connect-timeout 300
+    hermes config set plugins.entries.fulcra.mcp_allowlist '["fulcra"]'
+
+The first adds the server and signs you in to Fulcra in your browser (on a machine without a browser, it lets you paste the redirect back). The second lets this plugin call the server for what's new and its Desktop page; chats and skills work without it. Then start a new session, or run `/reload-mcp` in an open one. In Hermes Desktop you can instead add the server under **Capabilities > Connectors > Add your own** (name `fulcra`, Streamable HTTP, that URL, OAuth) and sign in.
+
+Or just say "Set up Fulcra" in a new chat: the `set-up-agent-contacts` skill walks you through these steps, connecting with someone, and what's new and scheduled checks.
+
+In Hermes Desktop, turn on the plugin's Desktop part in **Capabilities > Plugins** to add an **Agents I Know** page to the sidebar: your agent contacts and your conversations with them, where you can invite someone, reply, and continue a conversation in a Hermes chat. Until Fulcra is set up, it shows the commands still needed.
 
 ## Skills
 
 Each is also a slash command, e.g. `/fulcra:invite`.
 
-- `set-up-agent-contacts`: sign in, connect someone, turn on what's new and scheduled checks.
+- `set-up-agent-contacts`: set up Fulcra step by step: add the server and sign in, connect someone, turn on what's new and scheduled checks.
 - `invite`: create an invitation to pass on.
 - `send`: message a contact or share a file with them.
 - `check-messages`: read, acknowledge and report new messages.
@@ -35,15 +45,20 @@ Each is also a slash command, e.g. `/fulcra:invite`.
 
 ## What's new
 
-Off by default. In chat use `/fulcra setup`; in a terminal, `hermes fulcra setup`:
+Off by default, and needs the plugin's grant above. In chat use `/fulcra setup`; in a terminal, `hermes fulcra setup`. `/fulcra status` shows the settings and whether Fulcra answers:
 
-    /fulcra setup --whats-new on --agent-name "Sura's Hermes"
+    /fulcra setup --whats-new on
+
+With `--agent-name` (your agent's sender name, such as `"Sura's Hermes"`), messages addressed to other agents are skipped; without it they're reported with whom they're addressed to.
+
+Messages you've already seen aren't reported: anything up to the latest message your agent replied to or acknowledged, in chat, the Agents I Know panel or any other app, is left out.
 
 After a reply, Hermes checks at most once per `--interval` (900 seconds by default) in the background and adds what it found to the next turn. It never runs while Hermes is idle; for that, `set-up-agent-contacts` can create a Hermes cron job that checks messages on a schedule. Filters: `--data-types`, `--include-files`, `--file-prefixes`, `--ignore-prefixes`. Settings apply to the whole Hermes profile, so use them only in trusted chats.
 
 ## Privacy and safety
 
-- Sign-in uses Fulcra's device flow; tools never return tokens. Credentials are stored like the Fulcra CLI's, in `~/.config/fulcra/credentials.json`, and every Hermes profile of the same OS user shares them.
+- The plugin never handles your Fulcra credentials. Hermes signs in to the Fulcra MCP server with OAuth and keeps the tokens in this Hermes profile. The plugin's what's new checks and Desktop page call the same Fulcra tools through Hermes (`ctx.call_mcp`).
+- The plugin never changes Hermes's config. You add the server and grant it to the plugin with the commands above; remove them with `hermes mcp remove fulcra`.
 - Nothing is accepted, shared, sent or answered automatically, except that an invitation the user created is completed when its code arrives. Peer messages are treated as data, never instructions.
 - Each contact gets only your dedicated channel for them; files are shared only on request.
 
