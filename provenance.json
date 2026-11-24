@@ -116,8 +116,8 @@
     "sha256": "d3aacaea30ee5d4a3c93fd75d8db80226a8e282f1ceb6e766ce9a6ef326ee088"
   },
   "logo": {
-    "description": "assets/banner.png: Fulcra's 'Connect our agents' artwork (logo, two robot hands touching), supplied by Fulcra as a 1254x1254 PNG and cropped to the catalog's 2:1 (rows 288-915, scaled to 1200x600)",
+    "description": "assets/banner.png: Fulcra's 'Connect our agents' artwork (logo, two robot hands touching), supplied by Fulcra as a 1774x887 (2:1) PNG and scaled to 1200x600",
     "file": "assets/banner.png",
-    "sha256": "6a475b68441fbace33d36fcc4005cc861f3475063d0daef3c2e9145a835b96c9"
+    "sha256": "d2085f7032612f6beae864db990d1d831cc6af54268c458d83d1c230278443e7"
   }
 }

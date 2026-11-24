@@ -24,7 +24,7 @@ Fulcra's tools come from the hosted Fulcra MCP server. The user adds it with `he
 - `desktop/plugin.js`: the **Agents I Know** page and the `::fulcra-agents-i-know` transcript directive. Until Fulcra is added, granted and answering, the page shows what's missing; it doesn't sign in or change config (Desktop's **Capabilities > MCP servers** does). Then it runs the Agents I Know app in Desktop's `SandboxedFrame` as its MCP Apps host: tool calls go to `/call`, links open in the browser, a message for chat starts a new Hermes chat (followed by the context the app gave for the model), and the theme follows Desktop's. One ping comes first, because calls to a server Hermes hasn't connected count against its circuit breaker.
 - `desktop/agents-i-know.html`: the app the Fulcra MCP server offers MCP Apps hosts, copied by `scripts/update-app.py` at the commit in `provenance.json`, so the plugin never loads code from elsewhere. `scripts/check-tools.py` checks `APP_TOOLS` against it.
 - `skills/`: adapted from the Claude Fulcra plugin; `provenance.json` records each source.
-- `assets/banner.png`: the catalog image (2:1): Fulcra's "Connect our agents" artwork, cropped from the square original; `provenance.json` records the crop. The README shows it, and the catalog entry's `image:` points at it on `raw.githubusercontent.com` at the entry's pinned commit.
+- `assets/banner.png`: the catalog image (2:1): Fulcra's "Connect our agents" artwork, scaled to 1200x600; `provenance.json` records its source. The README shows it, and the catalog entry's `image:` points at it on `raw.githubusercontent.com` at the entry's pinned commit.
 
 Registration has no network access, writes or background work.
 
