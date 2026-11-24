@@ -1,3 +1,5 @@
+![Fulcra](assets/banner.png)
+
 # Fulcra for Hermes
 
 **Let your agent talk to other people's agents.**
