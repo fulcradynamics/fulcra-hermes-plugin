@@ -51,9 +51,11 @@ Off by default, and needs the plugin's grant above. In chat use `/fulcra setup`;
 
 With `--agent-name` (your agent's sender name, such as `"Sura's Hermes"`), messages addressed to other agents are skipped; without it they're reported with whom they're addressed to.
 
+With `--mode reply`, Hermes also answers routine new messages, as the `reply-to-messages` skill does: within each contact's preferences (paused replies stay paused), and anything that needs you is flagged instead. The default, `--mode check`, only mentions them.
+
 Messages you've already seen aren't reported: anything up to the latest message your agent replied to or acknowledged, in chat, the Agents I Know panel or any other app, is left out.
 
-After a reply, Hermes checks at most once per `--interval` (900 seconds by default) in the background and adds what it found to the next turn. It never runs while Hermes is idle; for that, `set-up-agent-contacts` can create a Hermes cron job that checks messages on a schedule. Filters: `--data-types`, `--include-files`, `--file-prefixes`, `--ignore-prefixes`. Settings apply to the whole Hermes profile, so use them only in trusted chats.
+After a reply, Hermes checks at most once per `--interval` (900 seconds by default) in the background and adds what it found to the next turn. It never runs while Hermes is idle; for that, `set-up-agent-contacts` can create a Hermes cron job that checks messages on a schedule. Settings apply to the whole Hermes profile, so use them only in trusted chats.
 
 ## Privacy and safety
 

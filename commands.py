@@ -34,8 +34,8 @@ def arguments(parser):
             options['choices'] = ('on', 'off')
         elif spec['type'] == 'integer':
             options.update(type=int, metavar='SECONDS')
-        elif spec['type'] == 'array':
-            options.update(nargs='*', metavar='VALUE')
+        elif 'enum' in spec:
+            options['choices'] = spec['enum']
         else:
             options['metavar'] = 'NAME'
         parser.add_argument('--' + key, **options)
