@@ -37,26 +37,9 @@ config_schema:
     maximum: 86400
     default: 900
     description: Minimum seconds between checks. Checks start after a reply, never while idle.
-  data-types:
-    label: Data types
-    type: array
-    items: {type: string, minLength: 1}
-    default: []
-    description: Data type IDs to report; empty means all.
-  include-files:
-    label: Include files
-    type: boolean
-    default: true
-    description: Report file changes.
-  file-prefixes:
-    label: File prefixes
-    type: array
-    items: {type: string, minLength: 1}
-    default: []
-    description: File path prefixes to report; empty means all.
-  ignore-prefixes:
-    label: Ignored file prefixes
-    type: array
-    items: {type: string, minLength: 1}
-    default: []
-    description: File path prefixes never to report.
+  mode:
+    label: Mode
+    type: string
+    choices: [check, reply]
+    default: check
+    description: 'check: mention new messages; reply: also answer routine ones, as reply-to-messages does.'

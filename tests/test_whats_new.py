@@ -104,8 +104,23 @@ class WhatsNewTests(unittest.TestCase):
         self.ctx.hooks['post_llm_call'](session_id='other')  # The next check, before any turn shows it.
         self.assertNotIn(message, [i.get('id') for i in self.ctx.state.values['whats-new']['pending']])
 
+    def test_reply_mode_says_to_answer_routine_messages(self):
+        for mode, phrase in (('check', 'Never reply'), ('reply', 'follow the reply-to-messages skill')):
+            with self.subTest(mode=mode):
+                self.fulcra = Fulcra()
+                self.ctx = Context(self.fulcra)
+                self.plugin.register(self.ctx)
+                self.setup('mode', mode)
+                self.turn()
+                self.fulcra.share_channel()
+                self.fulcra.post(CHANNEL, '00000000-0000-4000-8000-000000000031', sender='sura', kind='message',
+                                 body='Lunch Friday?')
+                self.due()
+                self.turn()
+                self.assertIn(phrase, self.turn()['context'])
+
     def test_notices_new_messages_contact_channels_and_changes_once(self):
-        self.setup('ignore-prefixes', ['/private/'])
+        self.setup()
         self.turn()  # First check: existing channels and older changes are not new.
 
         self.fulcra.share_channel()
@@ -116,8 +131,7 @@ class WhatsNewTests(unittest.TestCase):
         self.fulcra.post(CHANNEL, '00000000-0000-4000-8000-000000000003', sender='sura', kind='shout', body='Bad')
         stamp = datetime.now(timezone.utc).isoformat()
         self.fulcra.updates = {'data_types': {'Event/notes': 2, 'Event/empty': 0, 'FileChange': 2}, 'file_changes': [
-            {'id': 'f1', 'full_name': '/work/report.md', 'state': 'uploaded', 'uploaded_at': stamp},
-            {'id': 'f2', 'full_name': '/private/x', 'state': 'uploaded', 'uploaded_at': stamp}]}
+            {'id': 'f1', 'full_name': '/work/report.md', 'state': 'uploaded', 'uploaded_at': stamp}]}
         self.due()
         self.turn()
 

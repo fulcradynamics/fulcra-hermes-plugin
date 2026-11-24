@@ -69,6 +69,9 @@ class CommandTests(unittest.TestCase):
         self.assertEqual(self.ctx.config, {'whats-new': True, 'agent-name': 'helper', 'interval': 120})
         self.assertTrue(self.chat('status --interval 300').startswith('Error:'))
         self.assertTrue(self.chat('--bogus').startswith('Error:'))
+        self.assertTrue(self.chat('--mode everything').startswith('Error:'))
+        self.assertIn('mode = "reply"', self.chat('--mode reply'))
+        self.assertEqual(self.ctx.config['mode'], 'reply')
         self.assertIn('/fulcra connect', self.chat('--help'))
 
     def test_terminal(self):
