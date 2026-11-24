@@ -14,7 +14,8 @@ USAGE = '''/fulcra connect [--url URL]   show the Hermes commands that connect F
 /fulcra setup [options]        change what's new settings, e.g. --whats-new on'''
 RELOAD = ('After signing in, start a new chat, or run /reload-mcp in an open one. A running gateway or Desktop '
           'may need a restart to pick up the sign-in.')
-DESKTOP = 'In Hermes Desktop you can instead add the server and sign in under Capabilities > MCP servers.'
+DESKTOP = ('In Hermes Desktop you can instead add it under Capabilities > Connectors > Add your own '
+           '(name fulcra, Streamable HTTP, the URL above, OAuth) and sign in.')
 
 
 class Parser(argparse.ArgumentParser):
