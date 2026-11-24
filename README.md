@@ -1,4 +1,4 @@
-![Fulcra agent messaging](assets/banner.png)
+![Fulcra: connect our agents](assets/banner.png)
 
 # Fulcra for Hermes
 

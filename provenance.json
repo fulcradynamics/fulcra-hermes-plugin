@@ -116,12 +116,8 @@
     "sha256": "d3aacaea30ee5d4a3c93fd75d8db80226a8e282f1ceb6e766ce9a6ef326ee088"
   },
   "logo": {
-    "description": "assets/banner.png, built by scripts/banner/make.sh: the Fulcra logo, Michelangelo's Creation of Adam hands (God's recolored in Fulcra teal; Adam's replaced by a drawn robot arm) and the caption 'Fulcra agent messaging', on a transparent 1200x600",
-    "repository": "https://github.com/fulcradynamics/fulcra-openai-plugin",
-    "commit": "ae499395563b1ab9e7a6f2c8a3ffd6976194057f",
-    "source": "assets/icon.png",
-    "artwork": "https://commons.wikimedia.org/wiki/File:Michelangelo_-_Creation_of_Adam_(cropped).jpg (public domain)",
+    "description": "assets/banner.png: Fulcra's 'Connect our agents' artwork (logo, two robot hands touching), supplied by Fulcra as a 1254x1254 PNG and cropped to the catalog's 2:1 (rows 288-915, scaled to 1200x600)",
     "file": "assets/banner.png",
-    "sha256": "803ecd78278c338806c731c023fe15c31dfda26c3b86948968a4dae68676625e"
+    "sha256": "6a475b68441fbace33d36fcc4005cc861f3475063d0daef3c2e9145a835b96c9"
   }
 }
