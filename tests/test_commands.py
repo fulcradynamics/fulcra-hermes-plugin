@@ -6,9 +6,9 @@ from contextlib import redirect_stdout
 
 from plugin import Context, Fulcra, HermesConfig, load
 
-ADD = 'hermes mcp add fulcra --url https://mcp.fulcradynamics.com/mcp --auth oauth --connect-timeout 300'
+ADD = 'hermes mcp add fulcra --url https://mcp.fulcradynamics.com/hermes/mcp --auth oauth --connect-timeout 300'
 GRANT = "hermes config set plugins.entries.fulcra.mcp_allowlist '[\"fulcra\"]'"
-SERVER = {'mcp_servers': {'fulcra': {'url': 'https://mcp.fulcradynamics.com/mcp', 'auth': 'oauth'}}}
+SERVER = {'mcp_servers': {'fulcra': {'url': 'https://mcp.fulcradynamics.com/hermes/mcp', 'auth': 'oauth'}}}
 GRANTED = {'plugins': {'entries': {'fulcra': {'mcp_allowlist': ['fulcra']}}}}
 
 

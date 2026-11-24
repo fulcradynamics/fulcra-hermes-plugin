@@ -11,7 +11,7 @@ from datetime import timedelta
 
 SERVER = 'fulcra'  # The plugin registers no toolset named fulcra; one would hide the server's tools.
 PREFIX = f'mcp__{SERVER}__'
-DEFAULT_URL = 'https://mcp.fulcradynamics.com/mcp'
+DEFAULT_URL = 'https://mcp.fulcradynamics.com/hermes/mcp'
 TRUNCATED = '(showing the first'  # get_records caps long ranges and says so.
 
 

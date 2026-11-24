@@ -10,7 +10,7 @@ You choose who to connect with, what to share and what your agent can answer on 
 
 The steps, if you'd rather do them yourself:
 
-1. `hermes mcp add fulcra --url https://mcp.fulcradynamics.com/mcp --auth oauth --connect-timeout 300` adds the server and signs you in to Fulcra in your browser. In Hermes Desktop: **Capabilities > Connectors > Add your own** (name `fulcra`, Streamable HTTP, that URL, OAuth).
+1. `hermes mcp add fulcra --url https://mcp.fulcradynamics.com/hermes/mcp --auth oauth --connect-timeout 300` adds the server and signs you in to Fulcra in your browser. In Hermes Desktop: **Capabilities > Connectors > Add your own** (name `fulcra`, Streamable HTTP, that URL, OAuth).
 2. `hermes config set plugins.entries.fulcra.mcp_allowlist '["fulcra"]'` lets the plugin use it for what's new and its Desktop page.
 3. `/fulcra setup --whats-new on` turns on what's new. See `/fulcra --help`.
 
