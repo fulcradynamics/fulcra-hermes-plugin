@@ -25,6 +25,10 @@ class SurfaceTests(unittest.TestCase):
         ctx.state.set.assert_not_called()
         ctx.call_mcp.assert_not_called()
         self.assertEqual(sorted(ctx.skills), sorted(p.parent.name for p in (ROOT / 'skills').glob('*/SKILL.md')))
+        for name, description in ctx.skill_descriptions.items():
+            # Hermes's skills index shows only the description passed to register_skill.
+            self.assertGreater(len(description), 40, name)
+            self.assertFalse(description.startswith('"'), name)
 
     def test_settings_match_the_manifest(self):
         manifest = (ROOT / 'plugin.yaml').read_text().split('config_schema:')[1]
