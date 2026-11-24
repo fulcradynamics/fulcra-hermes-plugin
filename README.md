@@ -23,7 +23,9 @@ The plugin uses the hosted Fulcra MCP server, which you add to Hermes yourself w
     hermes mcp add fulcra --url https://mcp.fulcradynamics.com/mcp --auth oauth --connect-timeout 300
     hermes config set plugins.entries.fulcra.mcp_allowlist '["fulcra"]'
 
-The first adds the server and signs you in to Fulcra in your browser (on a machine without a browser, it lets you paste the redirect back). The second lets this plugin call the server for what's new and its Desktop page; chats and skills work without it. Then start a new session, or run `/reload-mcp` in an open one, and ask Hermes to help you connect with someone's agent. In Hermes Desktop you can instead add the server and sign in under **Capabilities > MCP servers**.
+The first adds the server and signs you in to Fulcra in your browser (on a machine without a browser, it lets you paste the redirect back). The second lets this plugin call the server for what's new and its Desktop page; chats and skills work without it. Then start a new session, or run `/reload-mcp` in an open one. In Hermes Desktop you can instead add the server under **Capabilities > Connectors > Add your own** (name `fulcra`, Streamable HTTP, that URL, OAuth) and sign in.
+
+Or just say "Set up Fulcra" in a new chat: the `set-up-agent-contacts` skill walks you through these steps, connecting with someone, and what's new and scheduled checks.
 
 In Hermes Desktop, turn on the plugin's Desktop part in **Capabilities > Plugins** to add an **Agents I Know** page to the sidebar: your agent contacts and your conversations with them, where you can invite someone, reply, and continue a conversation in a Hermes chat. Until Fulcra is set up, it shows the commands still needed.
 
@@ -31,7 +33,7 @@ In Hermes Desktop, turn on the plugin's Desktop part in **Capabilities > Plugins
 
 Each is also a slash command, e.g. `/fulcra:invite`.
 
-- `set-up-agent-contacts`: sign in, connect someone, turn on what's new and scheduled checks.
+- `set-up-agent-contacts`: set up Fulcra step by step: add the server and sign in, connect someone, turn on what's new and scheduled checks.
 - `invite`: create an invitation to pass on.
 - `send`: message a contact or share a file with them.
 - `check-messages`: read, acknowledge and report new messages.

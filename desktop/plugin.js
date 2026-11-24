@@ -1,7 +1,7 @@
 // Fulcra for Hermes Desktop: the Agents I Know page.
 // Plain ESM loaded uncompiled by Desktop: no JSX, and only @hermes/plugin-sdk and react imports.
 // The page never changes Hermes's config or signs in: until Fulcra is added and answering, it shows the Hermes
-// commands still needed and points to Desktop's own Capabilities > MCP servers. Then it runs the Agents I Know
+// commands still needed and points to Desktop's own Capabilities > Connectors. Then it runs the Agents I Know
 // app the Fulcra MCP server offers MCP Apps hosts (shipped as desktop/agents-i-know.html) in a sandboxed frame,
 // acting as its host: tool calls go to the plugin's backend, which makes them with Hermes's MCP client.
 import { Button, host, ROUTES_AREA, SandboxedFrame, SIDEBAR_NAV_AREA, StatusDot, TRANSCRIPT_DIRECTIVE_AREA, useTheme } from '@hermes/plugin-sdk'
@@ -52,7 +52,7 @@ const NOT_READY = {
   not_allowed: ['warn', 'The Fulcra plugin may not use the fulcra server yet.'],
   not_connected: [
     'warn',
-    'Hermes connects to Fulcra when a chat starts. Start a chat, then try again. If you haven\u2019t signed in, sign in under Capabilities > MCP servers.'
+    'Hermes connects to Fulcra when a chat starts. Start a chat, then try again. If you haven\u2019t signed in, sign in under Capabilities > Connectors.'
   ],
   error: ['bad', 'Fulcra answered with an error. You may need to sign in again under Capabilities > MCP servers.']
 }
@@ -113,7 +113,7 @@ function AgentsIKnowPage({ ctx }) {
       muted('Run in a terminal on the machine running Hermes (or ask Hermes to run them for you):'),
       ...info.commands.map(c => jsx(Command, { ctx, purpose: c.purpose, command: c.command })),
       muted(
-        'You can also add the server and sign in under Capabilities > MCP servers. After signing in, start a new chat; a running Hermes may need a restart to pick up the sign-in.'
+        'You can also add it under Capabilities > Connectors > Add your own: name fulcra, Streamable HTTP, this URL, OAuth; then sign in. After signing in, start a new chat; a running Hermes may need a restart to pick up the sign-in.'
       ),
       jsx(Button, { variant: 'outline', className: 'self-start', onClick: refresh, children: 'Check again' })
     )

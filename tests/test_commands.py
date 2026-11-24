@@ -32,7 +32,7 @@ class CommandTests(unittest.TestCase):
         text = self.chat('connect')
         self.assertIn(ADD, text)
         self.assertIn(GRANT, text)
-        self.assertIn('Capabilities > MCP servers', text)
+        self.assertIn('Capabilities > Connectors > Add your own', text)
         self.assertEqual(self.config.data, {})
         self.config.data = dict(SERVER)
         text = self.chat('connect')
