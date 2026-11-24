@@ -73,4 +73,8 @@ After a reply, Hermes checks at most once per `--interval` (900 seconds by defau
 - **No shell commands, subprocesses or telemetry.**
 - **Unattended runs:** if Fulcra isn't signed in, Hermes doesn't wait for a browser under cron or the messaging gateway; Fulcra's tools and what's new just fail for that run. Sign in again with `hermes mcp login fulcra`.
 
+## License
+
+MIT. `desktop/agents-i-know.html` is Fulcra's own code: the Agents I Know app from Fulcra's [fulcra-context-mcp](https://github.com/fulcradynamics/fulcra-context-mcp), copied unchanged at the commit recorded in `provenance.json`.
+
 Developers: see [docs/development.md](docs/development.md).
