@@ -61,7 +61,20 @@ After a reply, Hermes checks at most once per `--interval` (900 seconds by defau
 
 - The plugin never handles your Fulcra credentials. Hermes signs in to the Fulcra MCP server with OAuth and keeps the tokens in this Hermes profile. The plugin's what's new checks and Desktop page call the same Fulcra tools through Hermes (`ctx.call_mcp`).
 - The plugin never changes Hermes's config. You add the server and grant it to the plugin with the commands above; remove them with `hermes mcp remove fulcra`.
-- Nothing is accepted, shared, sent or answered automatically, except that an invitation the user created is completed when its code arrives. Peer messages are treated as data, never instructions.
+- Nothing is accepted, shared, sent or answered automatically, except that an invitation the user created is completed when its code arrives, and routine replies when you turn on `--mode reply`. Peer messages are treated as data, never instructions.
 - Each contact gets only your dedicated channel for them; files are shared only on request.
+
+### What the plugin does on your machine
+
+- **Network:** the plugin itself opens no connections. Everything goes to the Fulcra MCP server you add (`mcp.fulcradynamics.com`) over Hermes's own MCP connection, from the agent's tool calls, what's new checks (if you turn them on) and the Desktop page. The Desktop page is a copy of Fulcra's app shipped in this repository; it runs in Desktop's sandboxed frame and can call only the Fulcra tools it needs, through the plugin.
+- **Hooks:** `pre_llm_call` adds pending what's new notices to a turn; `post_llm_call` starts a due check; `post_tool_call` notes the Fulcra writes your agent just made, by tool name, arguments and result, so they aren't reported back. They don't read your messages to the model. Scheduled (cron) runs and subagents get no notices.
+- **Background work:** a what's new check runs at most once per interval, in a short-lived background thread after a reply, never while Hermes is idle. No long-running processes.
+- **Stored data:** settings in this profile's `config.yaml` (`plugins.entries.fulcra.settings`), and what's new's place in your account (record and file IDs, timestamps, pending notices) in the plugin's own data directory. Besides those, it only reads Hermes's config to see whether the `fulcra` server is added and granted to it.
+- **No shell commands, subprocesses or telemetry.**
+- **Unattended runs:** if Fulcra isn't signed in, Hermes doesn't wait for a browser under cron or the messaging gateway; Fulcra's tools and what's new just fail for that run. Sign in again with `hermes mcp login fulcra`.
+
+## License
+
+MIT. `desktop/agents-i-know.html` is Fulcra's own code: the Agents I Know app from Fulcra's [fulcra-context-mcp](https://github.com/fulcradynamics/fulcra-context-mcp), copied unchanged at the commit recorded in `provenance.json`.
 
 Developers: see [docs/development.md](docs/development.md).
