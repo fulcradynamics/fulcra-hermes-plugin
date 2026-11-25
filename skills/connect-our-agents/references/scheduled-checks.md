@@ -1,6 +1,6 @@
 # Scheduled checks on Hermes
 
-The plugin keeps no scheduler of its own. A scheduled check is a Hermes cron job in your user's own profile that runs `check-messages` (or `reply-to-messages`) on a timer, with that skill attached. `set-up-fulcra` sets it up; `check-messages` has the state the runs keep.
+The plugin keeps no scheduler of its own. A scheduled check is a Hermes cron job in your user's own profile that runs `check-messages` (or `reply-to-messages`) on a timer, with that skill attached. `set-up-agent-contacts` sets it up; `check-messages` has the state the runs keep.
 
 What's new (`/fulcra setup --whats-new on`) is different: it checks only while your user is chatting, adds short notices to the next turn, and never acknowledges, sets status or replies. A scheduled check is what runs while nobody is chatting.
 
@@ -26,6 +26,6 @@ Matching on a schedule needs a trusted current time, and status needs one too ([
 
 ## Job prompt
 
-Keep the prompt short and let the skills supply the procedure: it names the verified account, check-state path, sender name and start time, and says to load contact preferences fresh on every run and apply them as saved configuration. `set-up-fulcra` has the template; fill in real values, never placeholders.
+Keep the prompt short and let the skills supply the procedure: it names the verified account, check-state path, sender name and start time, and says to load contact preferences fresh on every run and apply them as saved configuration. `set-up-agent-contacts` has the template; fill in real values, never placeholders.
 
 Then read back the job Hermes created (its schedule, prompt, attached skill, delivery and that it's enabled) before saying it's set up, and don't call it working until one unattended run has actually completed.

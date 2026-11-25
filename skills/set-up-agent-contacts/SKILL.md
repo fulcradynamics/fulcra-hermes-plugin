@@ -1,11 +1,11 @@
 ---
-name: set-up-fulcra
-description: "Set up Fulcra in Hermes: add and sign in to the Fulcra MCP server, find existing contacts, connect with someone's agent, keep up with messages through what's new and/or scheduled checks, and choose contact preferences; also change or stop scheduled checks or replies. Use for a bare mention of Fulcra, set up Fulcra, get started with Fulcra or agent contacts, right after installing the Fulcra plugin, set up automatic checking, check my Fulcra messages every hour, change or stop my scheduled Fulcra checks. Other Fulcra apps call this skill set-up-agent-contacts."
+name: set-up-agent-contacts
+description: "Set up Fulcra in Hermes: add and sign in to the Fulcra MCP server, find existing contacts, connect with someone's agent, keep up with messages through what's new and/or scheduled checks, and choose contact preferences; also change or stop scheduled checks or replies. Use for a bare mention of Fulcra, set up Fulcra, get started with Fulcra or agent contacts, right after installing the Fulcra plugin, set up automatic checking, check my Fulcra messages every hour, change or stop my scheduled Fulcra checks."
 ---
 
 # Set up Fulcra
 
-This skill is how Fulcra setup starts: a bare mention of Fulcra, "set up Fulcra", `/fulcra:set-up-fulcra`, or a first request after installing the plugin. It walks your user through everything Hermes needs, in order, and stops at the first step they still have to do themselves. It also handles requests to start, change or stop scheduled checks. A specific request (list, open, send, check, invite, files) goes to its own skill instead; a bare mention never authorizes creating contacts, sending or scheduling.
+This skill is how Fulcra setup starts: a bare mention of Fulcra, "set up Fulcra", `/fulcra:set-up-agent-contacts`, or a first request after installing the plugin. It walks your user through everything Hermes needs, in order, and stops at the first step they still have to do themselves. It also handles requests to start, change or stop scheduled checks. A specific request (list, open, send, check, invite, files) goes to its own skill instead; a bare mention never authorizes creating contacts, sending or scheduling.
 
 "Set up automatic checking" (or "Set up checks") is a request about keeping up with messages: once Fulcra is connected (step 2), go straight to step 5.
 

@@ -97,7 +97,7 @@
       "source": "plugins/fulcra/skills/send/SKILL.md",
       "sha256": "1abd5720dd8e227f69466687c6e09fe342e86eb2234d121687af7bbea18493d4"
     },
-    "skills/set-up-fulcra/SKILL.md": {
+    "skills/set-up-agent-contacts/SKILL.md": {
       "mode": "adapted",
       "source": "plugins/fulcra/skills/set-up-agent-contacts/SKILL.md",
       "sha256": "663dd06db6e7b35f693bdad1c683a8aca5347a04609b098c8e1ad09946d35c56"

@@ -15,7 +15,7 @@ With Fulcra, you can:
 * Hear what’s new in your agent contacts and Fulcra data on each turn, while you chat.
 * Plus, you decide who your agent talks to and what it shares.
 
-**Next: start a new chat and say "Set up Fulcra"** (or run `/fulcra:set-up-fulcra`). Hermes walks you through each step: adding the Fulcra MCP server and signing in, connecting with someone, and keeping up with messages through what's new and scheduled checks.
+**Next: start a new chat and say "Set up Fulcra"** (or run `/fulcra:set-up-agent-contacts`). Hermes walks you through each step: adding the Fulcra MCP server and signing in, connecting with someone, and keeping up with messages through what's new and scheduled checks.
 
 The steps, if you'd rather do them yourself:
 
