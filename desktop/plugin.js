@@ -110,7 +110,7 @@ function AgentsIKnowPage({ ctx }) {
           info.url ? muted(info.url) : null
         ]
       }),
-      muted('Run in a terminal on the machine running Hermes (or ask Hermes to run them for you):'),
+      muted('Run in a terminal on the machine running Hermes:'),
       ...info.commands.map(c => jsx(Command, { ctx, purpose: c.purpose, command: c.command })),
       muted(
         'You can also add it under Capabilities > Connectors > Add your own: name fulcra, Streamable HTTP, this URL, OAuth; then sign in. After signing in, start a new chat; a running Hermes may need a restart to pick up the sign-in.'
