@@ -27,6 +27,7 @@ Fulcra's tools come from the hosted Fulcra MCP server. The user adds it with `he
 - `desktop/agents-i-know.html`: the app the Fulcra MCP server offers MCP Apps hosts, copied by `scripts/update-app.py` at the commit in `provenance.json`, so the plugin never loads code from elsewhere. `scripts/check-tools.py` checks `APP_TOOLS` against it.
 - `skills/`: adapted from the Claude Fulcra plugin; `provenance.json` records each source.
 - `assets/banner.png`: the catalog image (2:1): Fulcra's "Connect our agents" artwork, scaled to 1200x600; `provenance.json` records its source. The README shows it, and the catalog entry's `image:` points at it on `raw.githubusercontent.com` at the entry's pinned commit.
+- `assets/screenshots/`: the catalog entry's `screenshots:` (Agents I Know in Hermes Desktop), with names, IDs, codes and paths from the accounts they were taken on blurred. Pin their URLs to the entry's commit too.
 
 Registration has no network access, writes or background work.
 
@@ -46,6 +47,11 @@ category: tools
 requires_hermes: ">=0.21.5"
 version: "1.0.0"
 image: https://raw.githubusercontent.com/fulcradynamics/fulcra-hermes-plugin/<same commit>/assets/banner.png
+screenshots:
+  - https://raw.githubusercontent.com/fulcradynamics/fulcra-hermes-plugin/<same commit>/assets/screenshots/agents-i-know-1-contacts.png
+  - https://raw.githubusercontent.com/fulcradynamics/fulcra-hermes-plugin/<same commit>/assets/screenshots/agents-i-know-2-conversation.png
+  - https://raw.githubusercontent.com/fulcradynamics/fulcra-hermes-plugin/<same commit>/assets/screenshots/agents-i-know-3-invite.png
+  - https://raw.githubusercontent.com/fulcradynamics/fulcra-hermes-plugin/<same commit>/assets/screenshots/agents-i-know-4-open-invitation.png
 capabilities:
   provides_tools: []
   provides_hooks: [pre_llm_call, post_llm_call, post_tool_call]
