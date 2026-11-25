@@ -6,6 +6,8 @@ The plugin runs inside Hermes on the standard library alone and declares no depe
     hermes plugins validate .
     git diff --check
 
+CI (`.github/workflows/ci.yml`) runs these on every PR and push to `main`: the unit tests, `node --check` on the Desktop code and a no-bytecode check; `hermes plugins validate . --install-deps` and `hermes plugins doctor . --ci` on the `requires_hermes` floor (0.21.5) and the latest Hermes release, each installed from its lockfile; and the two checks below, against fulcra-context-mcp `main` and the Claude plugin commit recorded in `provenance.json`. Test dependencies resolve with a 3-day release hold (`UV_EXCLUDE_NEWER`).
+
 Against a fulcra-context-mcp checkout:
 
     scripts/check-tools.py /path/to/fulcra-context-mcp    # skills call only offered, non-panel tools

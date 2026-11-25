@@ -1,0 +1,98 @@
+name: ci
+
+# What the Hermes plugin catalog checks at the pinned commit (`hermes plugins validate`), on the
+# requires_hermes floor and the latest Hermes release, plus the plugin's own tests and checks.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Hold back releases newer than 3 days (test dependencies only; the plugin has none)
+        run: echo "UV_EXCLUDE_NEWER=$(date -u -d '3 days ago' +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_ENV"
+      - name: Unit tests
+        working-directory: tests
+        run: uv run --no-project --python 3.12 --with fastapi python -m unittest discover -v
+      - name: Desktop code parses
+        run: node --check desktop/plugin.js
+      - name: No committed bytecode (catalog rule 17)
+        run: |
+          if git ls-files | grep -E '(^|/)__pycache__/|\.py[co]$'; then exit 1; fi
+
+  hermes:
+    name: hermes plugins validate (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: requires_hermes floor, 0.21.5
+            ref: v2026.9.24
+          - name: latest release
+            ref: latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: plugin
+      - name: Pick the Hermes release
+        id: hermes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ref='${{ matrix.ref }}'
+          if [ "$ref" = latest ]; then ref=$(gh api repos/NousResearch/hermes-agent/releases/latest -q .tag_name); fi
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        with:
+          repository: NousResearch/hermes-agent
+          ref: ${{ steps.hermes.outputs.ref }}
+          path: hermes-agent
+      - uses: astral-sh/setup-uv@v6
+      - name: Install Hermes from its lockfile
+        working-directory: hermes-agent
+        # No --python: uv picks one the release supports (0.21.5 needs <3.14, later ones 3.14).
+        run: uv sync --frozen --no-dev
+      - name: hermes plugins validate --install-deps
+        working-directory: plugin
+        env:
+          HERMES_HOME: ${{ runner.temp }}/hermes-home
+        run: |
+          ../hermes-agent/.venv/bin/hermes --version
+          ../hermes-agent/.venv/bin/hermes plugins validate . --install-deps
+      - name: hermes plugins doctor --ci
+        working-directory: plugin
+        env:
+          HERMES_HOME: ${{ runner.temp }}/hermes-home
+        run: ../hermes-agent/.venv/bin/hermes plugins doctor . --ci
+
+  sources:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: plugin
+      - uses: actions/checkout@v4
+        with:
+          repository: fulcradynamics/fulcra-context-mcp
+          path: fulcra-context-mcp
+      - uses: actions/checkout@v4
+        with:
+          repository: fulcradynamics/claude-plugin
+          path: claude-plugin
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v6
+      - name: Skills and the Desktop page call only tools the Fulcra MCP server offers (its main)
+        run: python3 plugin/scripts/check-tools.py fulcra-context-mcp
+      - name: Skills match the Claude plugin sources they were adapted from (the recorded commit)
+        run: |
+          commit=$(python3 -c "import json; print(json.load(open('plugin/provenance.json'))['upstream']['commit'])")
+          python3 plugin/scripts/check-upstream.py claude-plugin "$commit"
