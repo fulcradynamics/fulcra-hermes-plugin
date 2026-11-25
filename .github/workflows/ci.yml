@@ -59,7 +59,8 @@ jobs:
       - uses: astral-sh/setup-uv@v6
       - name: Install Hermes from its lockfile
         working-directory: hermes-agent
-        run: uv sync --frozen --no-dev --python 3.12
+        # No --python: uv picks one the release supports (0.21.5 needs <3.14, later ones 3.14).
+        run: uv sync --frozen --no-dev
       - name: hermes plugins validate --install-deps
         working-directory: plugin
         env:
