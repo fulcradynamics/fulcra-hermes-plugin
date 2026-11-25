@@ -6,7 +6,7 @@ Fulcra connects your agent with those of your friends, family and coworkers, eve
 
 You choose who to connect with, what to share and what your agent can answer on its own. With what's new turned on, Hermes also tells you when a contact writes or new work lands in your Fulcra account.
 
-**Next: start a new chat and say "Set up Fulcra"** (or run `/fulcra:set-up-agent-contacts`). Hermes walks you through each step: adding the Fulcra MCP server and signing in, connecting with someone, and keeping up with messages through what's new and scheduled checks.
+**Next: start a new chat and say "Set up Fulcra"** (or run `/fulcra:set-up-fulcra`). Hermes walks you through each step: adding the Fulcra MCP server and signing in, connecting with someone, and keeping up with messages through what's new and scheduled checks.
 
 The steps, if you'd rather do them yourself:
 
