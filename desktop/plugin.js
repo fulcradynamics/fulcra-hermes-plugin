@@ -57,6 +57,13 @@ const NOT_READY = {
   error: ['bad', 'Fulcra answered with an error. You may need to sign in again under Capabilities > MCP servers.']
 }
 
+// "Start a chat" when Fulcra isn't connected yet: a chat makes Hermes connect its MCP servers, so the
+// page opens one that checks the Fulcra tools and offers the way back here.
+const CONNECT_PROMPT =
+  'I opened this chat from Agents I Know, because Hermes connects to Fulcra when a chat starts and the page ' +
+  'couldn\u2019t reach it yet. Please check that the Fulcra MCP tools are available (for example by verifying my ' +
+  'account with get_user_info), tell me if I need to sign in, and then show me the button to open Agents I Know.'
+
 function AgentsIKnowPage({ ctx }) {
   const [info, setInfo] = useState(null) // {server, url, allowed, commands} from the plugin's backend
   const [probe, setProbe] = useState(null) // {state, detail?}: whether Fulcra answers here
@@ -124,7 +131,7 @@ function AgentsIKnowPage({ ctx }) {
       jsxs('div', {
         className: 'flex gap-2',
         children: [
-          probe.state === 'not_connected' && jsx(Button, { variant: 'outline', onClick: () => host.newChat(), children: 'Start a chat' }),
+          probe.state === 'not_connected' && jsx(Button, { variant: 'outline', onClick: () => sendToChat(CONNECT_PROMPT), children: 'Start a chat' }),
           jsx(Button, { variant: 'ghost', onClick: check, children: 'Try again' })
         ]
       })
