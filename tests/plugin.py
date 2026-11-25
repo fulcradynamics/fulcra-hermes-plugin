@@ -117,6 +117,7 @@ class Context:
     def __init__(self, fulcra=None, allowed=True):
         self.config, self.state = {}, State()
         self.tools, self.hooks, self.commands, self.skills = {}, {}, {}, {}
+        self.skill_descriptions = {}
         self.fulcra = fulcra  # None: Hermes hasn't connected the Fulcra MCP server here
         self.allowed = allowed  # whether fulcra is in this plugin's mcp_allowlist
 
@@ -138,8 +139,9 @@ class Context:
     def register_cli_command(self, name, **kwargs):
         self.commands['cli ' + name] = kwargs
 
-    def register_skill(self, name, path):
+    def register_skill(self, name, path, description='', frontmatter=None):
         self.skills[name] = path
+        self.skill_descriptions[name] = description
 
     def call_mcp(self, server, tool, arguments=None, timeout=30):
         """Like Hermes's ctx.call_mcp: allowlisted servers only, an {ok, result|error} envelope, a size cap."""

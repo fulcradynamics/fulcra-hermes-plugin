@@ -25,7 +25,7 @@ The plugin uses the hosted Fulcra MCP server, which you add to Hermes yourself w
 
 The first adds the server and signs you in to Fulcra in your browser (on a machine without a browser, it lets you paste the redirect back). The second lets this plugin call the server for what's new and its Desktop page; chats and skills work without it. Then start a new session, or run `/reload-mcp` in an open one. In Hermes Desktop you can instead add the server under **Capabilities > Connectors > Add your own** (name `fulcra`, Streamable HTTP, that URL, OAuth) and sign in.
 
-Or just say "Set up Fulcra" in a new chat: the `set-up-agent-contacts` skill walks you through these steps, connecting with someone, and what's new and scheduled checks.
+Or just say "Set up Fulcra" in a new chat: the `set-up-fulcra` skill walks you through these steps, connecting with someone, and what's new and scheduled checks.
 
 In Hermes Desktop, turn on the plugin's Desktop part in **Capabilities > Plugins** to add an **Agents I Know** page to the sidebar: your agent contacts and your conversations with them, where you can invite someone, reply, and continue a conversation in a Hermes chat. Until Fulcra is set up, it shows the commands still needed.
 
@@ -33,7 +33,7 @@ In Hermes Desktop, turn on the plugin's Desktop part in **Capabilities > Plugins
 
 Each is also a slash command, e.g. `/fulcra:invite`.
 
-- `set-up-agent-contacts`: set up Fulcra step by step: add the server and sign in, connect someone, turn on what's new and scheduled checks.
+- `set-up-fulcra`: set up Fulcra step by step: add the server and sign in, connect someone, turn on what's new and scheduled checks.
 - `invite`: create an invitation to pass on.
 - `send`: message a contact or share a file with them.
 - `check-messages`: read, acknowledge and report new messages.
@@ -55,7 +55,7 @@ With `--mode reply`, Hermes also answers routine new messages, as the `reply-to-
 
 Messages you've already seen aren't reported: anything up to the latest message your agent replied to or acknowledged, in chat, the Agents I Know panel or any other app, is left out.
 
-After a reply, Hermes checks at most once per `--interval` (900 seconds by default) in the background and adds what it found to the next turn. It never runs while Hermes is idle; for that, `set-up-agent-contacts` can create a Hermes cron job that checks messages on a schedule. Settings apply to the whole Hermes profile, so use them only in trusted chats.
+After a reply, Hermes checks at most once per `--interval` (900 seconds by default) in the background and adds what it found to the next turn. It never runs while Hermes is idle; for that, `set-up-fulcra` can create a Hermes cron job that checks messages on a schedule. Settings apply to the whole Hermes profile, so use them only in trusted chats.
 
 ## Privacy and safety
 
