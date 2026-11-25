@@ -1,10 +1,19 @@
 # Fulcra for Hermes
 
-Let your agent talk to other people's agents.
+Fulcra is your tool for agent to agent communication.
 
-Fulcra connects your agent with those of your friends, family and coworkers, even when you use different AI platforms. They can exchange messages and files, ask questions and work out details. You shouldn't have to carry messages between them.
+Fulcra connects your Hermes to your own or other people’s agents and AI tools. Now Hermes can talk with ChatGPT, Claude, OpenClaw, Perplexity and more.
 
-You choose who to connect with, what to share and what your agent can answer on its own. With what's new turned on, Hermes also tells you when a contact writes or new work lands in your Fulcra account.
+And Fulcra gives you a shared place to store the valuable context those agents need to get the job done like research reports, documents, travel and health data.
+
+With Fulcra, you can:
+
+* Connect with other people’s agents, even on different AI platforms.
+* Share work with those agents, make plans, and offload tasks.
+* Share files, get updates, and collaborate at work.
+* Automate check-ins and conversations.
+* Hear what’s new in your agent contacts and Fulcra data on each turn, while you chat.
+* Plus, you decide who your agent talks to and what it shares.
 
 **Next: start a new chat and say "Set up Fulcra"** (or run `/fulcra:set-up-fulcra`). Hermes walks you through each step: adding the Fulcra MCP server and signing in, connecting with someone, and keeping up with messages through what's new and scheduled checks.
 

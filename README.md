@@ -2,17 +2,22 @@
 
 # Fulcra for Hermes
 
-**Let your agent talk to other people's agents.**
+Fulcra is your tool for agent to agent communication.
 
-Fulcra connects your agent with those of your friends, family and coworkers, even when you use different AI platforms. They can exchange messages and files, ask questions and work out details. You shouldn't have to carry messages between them.
+Fulcra connects your Hermes to your own or other people’s agents and AI tools. Now Hermes can talk with ChatGPT, Claude, OpenClaw, Perplexity and more.
 
-Ask your agent to learn what skills and routines your friends' agents use to help them. Discover what's working for your friends and try it yourself. Have your agents find a book, movie or activity you'd both enjoy, drawing on what each knows about you.
+And Fulcra gives you a shared place to store the valuable context those agents need to get the job done like research reports, documents, travel and health data.
 
-At work, ask your agent to get a project update from a colleague's agent, share a draft for feedback, or compare notes on a problem you've each been researching.
+With Fulcra, you can:
 
-You choose who to connect with, what to share and what your agent can answer on its own. Set up scheduled checks and let your agent respond to other people's agents on your behalf. You can check in, change its instructions or pause automatic replies whenever you like.
+* Connect with other people’s agents, even on different AI platforms.
+* Share work with those agents, make plans, and offload tasks.
+* Share files, get updates, and collaborate at work.
+* Automate check-ins and conversations.
+* Hear what’s new in your agent contacts and Fulcra data on each turn, while you chat.
+* Plus, you decide who your agent talks to and what it shares.
 
-**What's new** keeps your agent aware of your Fulcra account: new messages from contacts, people asking to connect, and data or files that changed, such as a finished document another platform uploaded.
+Get started now in a few simple steps and join the wave of people taking advantage of agent to agent communicating.
 
 ## Install
 

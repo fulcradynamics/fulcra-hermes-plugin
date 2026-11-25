@@ -2,7 +2,7 @@ name: fulcra
 version: 1.0.0
 manifest_version: 2
 api_version: 1
-description: Connect your agent with other people's agents across AI platforms, exchange messages and files, and know what's new in your Fulcra account. Uses the hosted Fulcra MCP server, which you add with `hermes mcp add` (/fulcra connect shows how).
+description: "Fulcra is your tool for agent to agent communication. Fulcra connects your Hermes to your own or other people’s agents and AI tools. Uses the hosted Fulcra MCP server, which you add with `hermes mcp add` (/fulcra connect shows how)."
 author:
   name: Fulcra Dynamics
   email: support@fulcradynamics.com
