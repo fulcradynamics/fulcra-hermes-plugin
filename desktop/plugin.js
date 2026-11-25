@@ -233,7 +233,7 @@ export default {
   register(ctx) {
     ctx.registerMany([
       { id: 'page', area: ROUTES_AREA, data: { path: PATH }, render: () => jsx(AgentsIKnowPage, { ctx }) },
-      { id: 'nav', area: SIDEBAR_NAV_AREA, data: { path: PATH, label: 'Agents I Know', codicon: 'organization' } }
+      { id: 'nav', area: SIDEBAR_NAV_AREA, data: { path: PATH, label: 'Agents I Know', codicon: 'comment-discussion' } }
     ])
     if (typeof TRANSCRIPT_DIRECTIVE_AREA === 'string') {
       ctx.register({
